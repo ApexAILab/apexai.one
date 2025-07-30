@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图像处理 - ApexAI</title>
+    <meta name="description" content="使用AI技术处理和改进图像">
+    
+    <!-- 样式文件引入 -->
+    <link rel="stylesheet" href="../css/main.css">
+    <link rel="stylesheet" href="../css/header.css">
+</head>
+<body>
+    <!-- 头部导航栏 -->
+    <header class="header">
+        <div class="header-container">
+            <!-- 网站标识 -->
+            <div class="header-brand">
+                <a href="../index.html" class="brand-logo">ApexAI</a>
+            </div>
+            
+            <!-- 导航菜单 -->
+            <nav class="header-nav">
+                <a href="image-generation.html" class="nav-btn">图像生成</a>
+                <a href="image-processing.html" class="nav-btn active">图像处理</a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- 主要内容区域 -->
+    <main class="main-content">
+        <div class="container">
+            <!-- 页面标题 -->
+            <div style="margin-top: 100px; text-align: center; padding: 40px 0;">
+                <h1 style="font-size: 2.5rem; margin-bottom: 20px; color: var(--text-primary);">
+                    AI 图像处理
+                </h1>
+                <p style="font-size: 1.2rem; color: var(--text-secondary); max-width: 600px; margin: 0 auto;">
+                    使用先进的AI技术，对图像进行智能处理和改进
+                </p>
+            </div>
+
+            <!-- 功能区域 -->
+            <div style="max-width: 1000px; margin: 0 auto; padding: 40px 0;">
+                <!-- 图像上传区域 -->
+                <div style="background: var(--background-secondary); padding: 30px; border-radius: 12px; margin-bottom: 30px;">
+                    <h2 style="margin-bottom: 20px; color: var(--text-primary);">上传图像</h2>
+                    
+                    <div id="uploadArea" style="
+                        border: 2px dashed var(--border-color);
+                        border-radius: 8px;
+                        padding: 40px;
+                        text-align: center;
+                        background: white;
+                        cursor: pointer;
+                        transition: border-color 0.2s ease;
+                    " onmouseover="this.style.borderColor='var(--accent-color)'" onmouseout="this.style.borderColor='var(--border-color)'">
+                        <div style="font-size: 48px; margin-bottom: 15px;">📁</div>
+                        <p style="color: var(--text-secondary); margin-bottom: 10px;">点击或拖拽图像到此处</p>
+                        <p style="font-size: var(--font-size-small); color: var(--text-secondary);">
+                            支持 JPG、PNG、GIF 格式，最大 10MB
+                        </p>
+                        <input type="file" id="imageInput" accept="image/*" style="display: none;">
+                    </div>
+                </div>
+
+                <!-- 处理选项区域 -->
+                <div id="processingOptions" style="display: none;">
+                    <div style="background: var(--background-secondary); padding: 30px; border-radius: 12px; margin-bottom: 30px;">
+                        <h2 style="margin-bottom: 20px; color: var(--text-primary);">处理选项</h2>
+                        
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px;">
+                            <!-- 图像增强 -->
+                            <div style="
+                                background: white;
+                                padding: 20px;
+                                border-radius: 8px;
+                                border: 1px solid var(--border-color);
+                                cursor: pointer;
+                                transition: all 0.2s ease;
+                            " onclick="selectProcessingOption('enhance')" id="enhanceOption">
+                                <div style="font-size: 24px; margin-bottom: 10px;">✨</div>
+                                <h3 style="margin-bottom: 8px; color: var(--text-primary);">图像增强</h3>
+                                <p style="font-size: var(--font-size-small); color: var(--text-secondary);">
+                                    提升图像清晰度和质量
+                                </p>
+                            </div>
+
+                            <!-- 背景移除 -->
+                            <div style="
+                                background: white;
+                                padding: 20px;
+                                border-radius: 8px;
+                                border: 1px solid var(--border-color);
+                                cursor: pointer;
+                                transition: all 0.2s ease;
+                            " onclick="selectProcessingOption('remove-bg')" id="removeBgOption">
+                                <div style="font-size: 24px; margin-bottom: 10px;">✂️</div>
+                                <h3 style="margin-bottom: 8px; color: var(--text-primary);">背景移除</h3>
+                                <p style="font-size: var(--font-size-small); color: var(--text-secondary);">
+                                    智能移除图像背景
+                                </p>
+                            </div>
+
+                            <!-- 风格转换 -->
+                            <div style="
+                                background: white;
+                                padding: 20px;
+                                border-radius: 8px;
+                                border: 1px solid var(--border-color);
+                                cursor: pointer;
+                                transition: all 0.2s ease;
+                            " onclick="selectProcessingOption('style')" id="styleOption">
+                                <div style="font-size: 24px; margin-bottom: 10px;">🎨</div>
+                                <h3 style="margin-bottom: 8px; color: var(--text-primary);">风格转换</h3>
+                                <p style="font-size: var(--font-size-small); color: var(--text-secondary);">
+                                    应用艺术风格到图像
+                                </p>
+                            </div>
+
+                            <!-- 尺寸调整 -->
+                            <div style="
+                                background: white;
+                                padding: 20px;
+                                border-radius: 8px;
+                                border: 1px solid var(--border-color);
+                                cursor: pointer;
+                                transition: all 0.2s ease;
+                            " onclick="selectProcessingOption('resize')" id="resizeOption">
+                                <div style="font-size: 24px; margin-bottom: 10px;">📏</div>
+                                <h3 style="margin-bottom: 8px; color: var(--text-primary);">尺寸调整</h3>
+                                <p style="font-size: var(--font-size-small); color: var(--text-secondary);">
+                                    智能调整图像尺寸
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- 处理按钮 -->
+                        <div style="text-align: center;">
+                            <button 
+                                id="processBtn"
+                                style="
+                                    background: var(--accent-color);
+                                    color: white;
+                                    padding: 12px 24px;
+                                    border: none;
+                                    border-radius: 8px;
+                                    font-size: var(--font-size-base);
+                                    font-weight: 500;
+                                    cursor: pointer;
+                                    transition: background-color 0.2s ease;
+                                "
+                                onmouseover="this.style.backgroundColor='#0056b3'"
+                                onmouseout="this.style.backgroundColor='var(--accent-color)'"
+                            >
+                                开始处理
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 图像预览区域 -->
+                <div id="imagePreview" style="display: none;">
+                    <h2 style="margin-bottom: 20px; color: var(--text-primary);">图像预览</h2>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px;">
+                        <!-- 原图 -->
+                        <div>
+                            <h3 style="margin-bottom: 15px; color: var(--text-primary);">原图</h3>
+                            <div id="originalImage" style="
+                                background: var(--background-secondary);
+                                border-radius: 8px;
+                                padding: 20px;
+                                text-align: center;
+                                min-height: 300px;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                            ">
+                                <p style="color: var(--text-secondary);">原图将在这里显示</p>
+                            </div>
+                        </div>
+
+                        <!-- 处理后图像 -->
+                        <div>
+                            <h3 style="margin-bottom: 15px; color: var(--text-primary);">处理后</h3>
+                            <div id="processedImage" style="
+                                background: var(--background-secondary);
+                                border-radius: 8px;
+                                padding: 20px;
+                                text-align: center;
+                                min-height: 300px;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                            ">
+                                <p style="color: var(--text-secondary);">处理后的图像将在这里显示</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 下载按钮 -->
+                    <div style="text-align: center;">
+                        <button 
+                            id="downloadProcessedBtn"
+                            style="
+                                background: var(--accent-color);
+                                color: white;
+                                padding: 12px 24px;
+                                border: none;
+                                border-radius: 8px;
+                                font-size: var(--font-size-base);
+                                font-weight: 500;
+                                cursor: pointer;
+                                margin-right: 15px;
+                            "
+                        >
+                            下载处理后的图像
+                        </button>
+                        
+                        <button 
+                            id="resetBtn"
+                            style="
+                                background: var(--background-primary);
+                                color: var(--text-primary);
+                                padding: 12px 24px;
+                                border: 1px solid var(--border-color);
+                                border-radius: 8px;
+                                font-size: var(--font-size-base);
+                                font-weight: 500;
+                                cursor: pointer;
+                            "
+                        >
+                            重新开始
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- JavaScript 文件引入 -->
+    <script src="../js/main.js"></script>
+    <script src="../js/imageProcessing.js"></script>
+</body>
+</html> 

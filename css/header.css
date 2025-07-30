@@ -1,0 +1,111 @@
+/* ApexAI 网站头部导航样式 */
+
+/* 头部导航容器 */
+.header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background-color: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border-color);
+    z-index: 1000;
+    padding: var(--spacing-md) 0;
+}
+
+/* 头部内容容器 */
+.header-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 var(--spacing-md);
+}
+
+/* 网站标识区域 */
+.header-brand {
+    display: flex;
+    align-items: center;
+}
+
+/* 网站标识文字 */
+.brand-logo {
+    font-size: var(--font-size-large);
+    font-weight: 700;
+    color: var(--text-primary);
+    text-decoration: none;
+    letter-spacing: -0.5px;
+}
+
+.brand-logo:hover {
+    color: var(--accent-color);
+}
+
+/* 导航菜单区域 */
+.header-nav {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-lg);
+}
+
+/* 导航按钮样式 */
+.nav-btn {
+    font-size: var(--font-size-base);
+    font-weight: 500;
+    color: var(--text-primary);
+    background: none;
+    border: none;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--border-radius-md);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.nav-btn:hover {
+    background-color: var(--background-secondary);
+    color: var(--accent-color);
+}
+
+.nav-btn.active {
+    color: var(--accent-color);
+    background-color: var(--background-secondary);
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .header-container {
+        padding: 0 var(--spacing-sm);
+    }
+    
+    .header-nav {
+        gap: var(--spacing-md);
+    }
+    
+    .nav-btn {
+        font-size: var(--font-size-small);
+        padding: var(--spacing-xs) var(--spacing-sm);
+    }
+}
+
+@media (max-width: 480px) {
+    .header {
+        padding: var(--spacing-sm) 0;
+    }
+    
+    .brand-logo {
+        font-size: var(--font-size-base);
+    }
+    
+    .header-nav {
+        gap: var(--spacing-sm);
+    }
+    
+    .nav-btn {
+        font-size: var(--font-size-small);
+        padding: var(--spacing-xs);
+    }
+} 
