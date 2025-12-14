@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEXUS - V10.2 (精细化修正版)</title>
+    
+    <!-- 1. 核心库 (unpkg源 - 保持稳定) -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: { zinc: { 750: '#2d2d30', 850: '#1f1f22', 950: '#0c0c0e' } },
+                    fontFamily: { sans: ['-apple-system', 'BlinkMacSystemFont', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-thumb { background: #52525b; border-radius: 3px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        .spinner { animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .modal-enter-active, .modal-leave-active { transition: opacity 0.2s ease; }
+        .modal-enter-from, .modal-leave-to { opacity: 0; }
+    </style>
+</head>
+<body class="bg-zinc-100 h-screen w-screen overflow-hidden text-sm text-zinc-900">
+
+<div id="app" class="flex w-full h-full">
+
+    <!-- 左侧导航 -->
+    <div class="w-64 bg-zinc-950 text-zinc-400 flex flex-col border-r border-zinc-800 shrink-0 z-40">
+        <div class="p-3 space-y-2">
+            <button @click="startNewSession" class="w-full bg-zinc-800 hover:bg-zinc-700 text-white py-2.5 rounded-lg border border-zinc-700 transition flex items-center justify-start px-4 shadow-sm group">
+                <i class="ph ph-plus mr-3 text-lg group-hover:scale-110 transition-transform"></i>
+                <span class="font-medium">新建任务</span>
+            </button>
+            <button @click="openBatchModal" class="w-full bg-indigo-900/30 hover:bg-indigo-900/50 text-indigo-300 hover:text-indigo-200 py-2 rounded-lg border border-indigo-900/50 transition flex items-center justify-start px-4 shadow-sm">
+                <i class="ph ph-stack mr-3 text-lg"></i>
+                <span class="font-medium">批量作业</span>
+            </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-3 space-y-1 mt-2">
+            <div v-if="tasks.length === 0" class="text-center mt-10 opacity-30 select-none">
+                <i class="ph ph-list-dashes text-3xl mb-2"></i>
+                <p class="text-xs">暂无历史任务</p>
+            </div>
+            <div v-for="task in tasks" :key="task.id" @click="viewTask(task.id)"
+                class="group relative px-3 py-3 rounded-lg cursor-pointer transition-all border border-transparent hover:border-zinc-800"
+                :class="currentTaskId === task.id ? 'bg-zinc-800 text-white shadow-md border-zinc-700' : 'hover:bg-zinc-900 text-zinc-500'">
+                <div class="flex justify-between items-start mb-1">
+                    <span class="text-xs font-bold truncate max-w-[70%]">{{ task.modelName }}</span>
+                    <span class="text-[10px] opacity-60">{{ formatTime(task.startTime) }}</span>
+                </div>
+                <div class="text-xs truncate opacity-80 font-mono mb-1.5">{{ task.summary || '无标题' }}</div>
+                <div class="flex items-center text-[10px]">
+                    <span v-if="task.status === 'polling'" class="text-blue-400 flex items-center"><i class="ph ph-spinner spinner mr-1"></i> 进行中</span>
+                    <span v-else-if="task.status === 'success'" class="text-emerald-500 flex items-center"><i class="ph ph-check-circle mr-1"></i> 完成</span>
+                    <span v-else-if="task.status === 'failed'" class="text-red-500 flex items-center"><i class="ph ph-warning-circle mr-1"></i> 失败</span>
+                    <span v-else-if="task.status === 'stopped'" class="text-amber-500 flex items-center"><i class="ph ph-stop-circle mr-1"></i> 已终止</span>
+                </div>
+                <button @click.stop="deleteTask(task.id)" class="absolute right-2 bottom-2 opacity-0 group-hover:opacity-100 hover:text-red-400 transition"><i class="ph ph-trash"></i></button>
+            </div>
+        </div>
+
+        <div class="p-4 border-t border-zinc-800">
+            <button @click="showSettings = true" class="flex items-center space-x-3 text-zinc-400 hover:text-white transition w-full px-2 py-2 rounded-lg hover:bg-zinc-900">
+                <div class="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center border border-zinc-700"><i class="ph ph-gear text-lg"></i></div>
+                <div class="flex-1 text-left"><div class="font-bold text-xs">系统设置</div><div class="text-[10px] opacity-50">配置管理</div></div>
+            </button>
+        </div>
+    </div>
+
+    <!-- 右侧主界面 -->
+    <div class="flex-1 flex flex-col h-full bg-white relative z-0">
+        <header class="h-14 border-b border-zinc-200 flex items-center justify-between px-6 bg-white/90 backdrop-blur z-10">
+            <div class="font-bold text-lg text-zinc-800 tracking-tight flex items-center">
+                <span v-if="!currentTask" class="text-zinc-400"><i class="ph ph-sparkle mr-2"></i>创建新任务</span>
+                <span v-else class="flex items-center"><i class="ph ph-clock-counter-clockwise mr-2 text-zinc-400"></i>任务详情</span>
+            </div>
+            <!-- V10.2 修改：此处不再放置调试开关 -->
+        </header>
+
+        <div class="flex-1 overflow-y-auto p-8 scroll-smooth bg-zinc-50">
+            <div class="max-w-3xl mx-auto space-y-8">
+                <!-- 新建任务 -->
+                <div v-if="!currentTask" class="space-y-8">
+                    <div class="bg-white p-6 rounded-2xl border border-zinc-200 shadow-sm space-y-4">
+                        <label class="block text-sm font-bold text-zinc-800">选择模型 (Model)</label>
+                        <div class="relative">
+                            <select v-model="selectedModelId" @change="onModelChange" class="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 appearance-none outline-none focus:ring-2 focus:ring-zinc-900 transition font-medium">
+                                <option value="" disabled>-- 请选择 --</option>
+                                <option v-for="m in models" :value="m.id">{{ m.name }}</option>
+                            </select>
+                            <i class="ph ph-caret-down absolute right-4 top-4 text-zinc-400 pointer-events-none"></i>
+                        </div>
+                        <div v-if="models.length === 0" class="text-xs text-red-500 flex items-center"><i class="ph ph-warning mr-1"></i> 暂无模型，请在设置中添加</div>
+                    </div>
+
+                    <div v-if="selectedModel" class="bg-white p-6 rounded-2xl border border-zinc-200 shadow-sm space-y-6">
+                        <div v-for="(field, idx) in parsedFields" :key="idx">
+                            <label class="block text-sm font-bold text-zinc-700 mb-2">{{ field.label }}</label>
+                            
+                            <div v-if="field.type === 'select'" class="relative">
+                                <select v-model="formData[field.key]" class="w-full border border-zinc-300 rounded-xl px-4 py-3 appearance-none outline-none focus:ring-2 focus:ring-zinc-900 transition">
+                                    <option v-for="opt in field.options" :value="opt">{{ opt }}</option>
+                                </select>
+                                <i class="ph ph-caret-down absolute right-4 top-4 text-zinc-400"></i>
+                            </div>
+                            <textarea v-else-if="field.type === 'textarea'" v-model="formData[field.key]" rows="3" class="w-full border border-zinc-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-zinc-900 transition resize-none"></textarea>
+                            <div v-else-if="field.type === 'file-url' || field.type === 'file-base64'" class="space-y-2">
+                                <div class="relative flex items-center">
+                                    <input v-if="field.type==='file-url'" v-model="formData[field.key]" type="text" class="w-full border border-zinc-300 rounded-xl px-4 py-3 pl-10 pr-24 outline-none focus:ring-2 focus:ring-zinc-900 transition" placeholder="HTTPS 链接">
+                                    <input v-else type="text" value="Base64 Data" disabled class="w-full border border-zinc-300 rounded-xl px-4 py-3 pl-10 pr-24 bg-zinc-100 text-zinc-400">
+                                    <i class="ph ph-image absolute left-3.5 top-4 text-zinc-400"></i>
+                                    <label class="absolute right-2 top-2 bottom-2 bg-zinc-900 text-white px-3 flex items-center rounded-lg cursor-pointer hover:bg-zinc-800 transition text-xs font-bold shadow-sm">
+                                        <i v-if="uploadingKeys[field.key]" class="ph ph-spinner spinner mr-1"></i>
+                                        <i v-else class="ph ph-upload-simple mr-1"></i>
+                                        <span>{{ uploadingKeys[field.key] ? '...' : '上传' }}</span>
+                                        <input type="file" class="hidden" accept="image/*" @change="(e) => handleUpload(e, field.key, field.type)">
+                                    </label>
+                                </div>
+                                <div v-if="previews[field.key] || (field.type==='file-url' && formData[field.key])" class="w-full h-32 bg-zinc-100 rounded-xl border border-zinc-200 flex items-center justify-center overflow-hidden">
+                                    <img :src="previews[field.key] || formData[field.key]" class="max-h-full max-w-full object-contain">
+                                </div>
+                            </div>
+                            <input v-else v-model="formData[field.key]" class="w-full border border-zinc-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-zinc-900 transition">
+                        </div>
+                        <button @click="submitTask" class="w-full bg-zinc-900 hover:bg-zinc-800 text-white py-4 rounded-xl font-bold text-lg shadow-xl shadow-zinc-900/10 transition transform active:scale-[0.99] flex justify-center items-center"><i class="ph ph-rocket-launch mr-2"></i> 立即提交任务</button>
+                    </div>
+                </div>
+
+                <!-- 任务详情 -->
+                <div v-else class="space-y-8">
+                    <div v-if="currentTask.result" class="space-y-2">
+                        <div class="flex items-center space-x-2"><span class="w-2 h-2 rounded-full bg-emerald-500"></span><h3 class="font-bold text-zinc-900">结果</h3></div>
+                        <div class="bg-black rounded-2xl overflow-hidden shadow-2xl relative group ring-1 ring-zinc-900/5 aspect-video flex items-center justify-center">
+                            <video v-if="isVideo(currentTask.result)" :src="currentTask.result" controls autoplay loop class="w-full h-full object-contain"></video>
+                            <img v-else :src="currentTask.result" class="w-full h-full object-contain">
+                            <a :href="currentTask.result" target="_blank" download class="absolute top-4 right-4 bg-white/20 hover:bg-white/30 backdrop-blur p-2 rounded-lg text-white transition"><i class="ph ph-download-simple text-xl"></i></a>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl border border-zinc-200 shadow-sm space-y-4">
+                        <div class="flex justify-between items-center border-b border-zinc-100 pb-4">
+                            <div><h2 class="text-xl font-bold text-zinc-900">{{ currentTask.modelName }}</h2><p class="text-xs text-zinc-400 font-mono mt-1">ID: {{ currentTask.id }}</p></div>
+                            <div class="flex items-center space-x-4">
+                                <button v-if="currentTask.status === 'polling'" @click="stopTask(currentTask.id)" class="flex items-center space-x-1.5 bg-red-50 hover:bg-red-100 text-red-600 px-3 py-1.5 rounded-lg text-xs font-bold transition border border-red-200"><i class="ph ph-stop-circle text-lg"></i><span>终止</span></button>
+                                <div class="text-right"><div class="text-xs text-zinc-400">时间</div><div class="font-bold text-zinc-700">{{ new Date(currentTask.startTime).toLocaleTimeString() }}</div></div>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 gap-2">
+                            <div v-for="(val, key) in currentTask.inputs" :key="key" class="text-sm"><span class="font-bold text-zinc-500 mr-2">{{ key }}:</span><span class="text-zinc-800 break-all" v-if="val.length < 100">{{ val }}</span><span class="text-zinc-800 text-xs bg-zinc-100 px-2 py-0.5 rounded cursor-pointer" v-else title="点击复制" @click="copyToClip(val)">[长文本]</span></div>
+                        </div>
+                    </div>
+                    <div class="bg-zinc-900 rounded-2xl p-5 h-64 overflow-y-auto text-xs font-mono space-y-2 shadow-inner border border-zinc-800">
+                        <div class="flex justify-between text-zinc-500 mb-4 border-b border-zinc-800 pb-2">
+                            <span class="font-bold tracking-wider text-zinc-400">LOGS</span>
+                            <!-- V10.2 修改：调试开关放在这里 -->
+                            <div class="flex items-center space-x-4">
+                                <label class="flex items-center space-x-1.5 cursor-pointer hover:text-white transition">
+                                    <input type="checkbox" v-model="globalDebug" class="rounded bg-zinc-800 border-zinc-600 text-zinc-200 focus:ring-0">
+                                    <span class="text-[10px]">调试模式</span>
+                                </label>
+                                <button @click="currentTask.logs=[]" class="hover:text-white transition">Clear</button>
+                            </div>
+                        </div>
+                        <div v-if="currentTask.status === 'polling'" class="text-blue-400 animate-pulse text-[10px] mb-2">Running...</div>
+                        <div v-else-if="currentTask.status === 'stopped'" class="text-amber-500 text-[10px] mb-2">Terminated</div>
+                        
+                        <div v-for="(log, i) in currentTask.logs" :key="i" class="flex flex-col space-y-1">
+                            <div class="flex space-x-3">
+                                <span class="text-zinc-600 select-none w-14 shrink-0">{{ log.time }}</span>
+                                <span :class="{'text-red-400': log.type==='error', 'text-emerald-400': log.type==='success', 'text-zinc-300': log.type==='info', 'text-zinc-500': log.type==='debug', 'text-amber-400': log.type==='warning'}">{{ log.msg }}</span>
+                            </div>
+                            <pre v-if="globalDebug && log.detail" class="ml-16 bg-black/30 text-zinc-500 p-2 rounded overflow-x-auto whitespace-pre-wrap">{{ log.detail }}</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 批量弹窗 -->
+    <transition name="modal">
+    <div v-if="showBatch" class="fixed inset-0 z-[60] flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showBatch = false"></div>
+        <div class="bg-white w-full max-w-6xl h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden relative z-10">
+            <div class="px-6 py-4 border-b border-zinc-200 flex justify-between items-center bg-zinc-50">
+                <div class="flex items-center space-x-4">
+                    <h2 class="text-lg font-bold text-zinc-900 flex items-center"><i class="ph ph-stack text-indigo-600 mr-2"></i> 批量作业台</h2>
+                    <select v-model="batchModelId" class="bg-white border border-zinc-300 text-sm rounded-lg px-3 py-1.5 focus:border-indigo-500 outline-none"><option value="" disabled>-- 选择模型 --</option><option v-for="m in models" :value="m.id">{{ m.name }}</option></select>
+                </div>
+                <div class="flex space-x-2 text-xs">
+                    <button v-if="batchModelId" @click="downloadTemplate" class="px-3 py-2 bg-white border border-zinc-300 hover:bg-zinc-50 rounded-lg transition flex items-center"><i class="ph ph-download-simple mr-1"></i> 模板</button>
+                    <button v-if="batchModelId" onclick="document.getElementById('csv-input').click()" class="px-3 py-2 bg-white border border-zinc-300 hover:bg-zinc-50 rounded-lg transition flex items-center"><i class="ph ph-file-csv mr-1"></i> 导入CSV</button>
+                    <input type="file" id="csv-input" @change="importCSV" class="hidden" accept=".csv">
+                    <button v-if="batchModelId" @click="addBatchRow" class="px-3 py-2 bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100 rounded-lg transition font-bold flex items-center"><i class="ph ph-plus mr-1"></i> 添加一行</button>
+                    <button @click="showBatch = false" class="w-8 h-8 rounded-full hover:bg-zinc-200 flex items-center justify-center transition"><i class="ph ph-x"></i></button>
+                </div>
+            </div>
+            <div class="flex-1 overflow-auto bg-white p-6">
+                <div v-if="!batchModelId" class="h-full flex items-center justify-center text-zinc-400 flex-col"><i class="ph ph-cursor-click text-4xl mb-2 opacity-30"></i><p>请先在左上角选择一个模型</p></div>
+                <div v-else>
+                    <table class="w-full text-left border-collapse text-sm">
+                        <thead><tr class="border-b border-zinc-200 text-zinc-500"><th class="p-3 font-medium w-16">#</th><th v-for="f in parsedBatchFields" :key="f.key" class="p-3 font-medium">{{ f.label }}</th><th class="p-3 font-medium w-20">操作</th></tr></thead>
+                        <tbody>
+                            <tr v-for="(row, idx) in batchRows" :key="idx" class="border-b border-zinc-100 hover:bg-zinc-50 group">
+                                <td class="p-3 text-zinc-400">{{ idx + 1 }}</td>
+                                <td v-for="f in parsedBatchFields" :key="f.key" class="p-2">
+                                    <textarea v-if="f.type==='textarea'" v-model="row[f.key]" rows="1" class="w-full bg-white border border-zinc-300 rounded px-2 py-1 text-xs resize-y outline-none"></textarea>
+                                    <select v-else-if="f.type==='select'" v-model="row[f.key]" class="w-full bg-white border border-zinc-300 rounded px-2 py-1 text-xs outline-none"><option v-for="opt in f.options" :value="opt">{{ opt }}</option></select>
+                                    <div v-else-if="f.type==='file-url' || f.type==='file-base64'" class="relative group/upload">
+                                        <div class="flex items-center space-x-2">
+                                            <input v-model="row[f.key]" type="text" class="w-full bg-white border border-zinc-300 rounded px-2 py-1 text-xs outline-none truncate" :placeholder="f.type">
+                                            <label class="cursor-pointer text-zinc-400 hover:text-indigo-600 transition p-1"><i class="ph ph-upload-simple text-lg"></i><input type="file" class="hidden" accept="image/*" @change="(e) => handleBatchUpload(e, row, f.key, f.type)"></label>
+                                        </div>
+                                    </div>
+                                    <input v-else v-model="row[f.key]" type="text" class="w-full bg-white border border-zinc-300 rounded px-2 py-1 text-xs outline-none">
+                                </td>
+                                <td class="p-3"><button @click="batchRows.splice(idx, 1)" class="text-zinc-300 hover:text-red-500 transition"><i class="ph ph-trash"></i></button></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="p-4 border-t border-zinc-200 bg-zinc-50 flex justify-between items-center">
+                <div class="text-xs text-zinc-500">共 {{ batchRows.length }} 个任务</div>
+                <button @click="runBatch" :disabled="batchRows.length === 0" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-lg text-sm font-bold shadow-lg transition disabled:opacity-50 flex items-center"><i class="ph ph-rocket-launch mr-2"></i> 全部提交</button>
+            </div>
+        </div>
+    </div>
+    </transition>
+
+    <!-- 设置弹窗 -->
+    <transition name="modal"><div v-if="showSettings" class="fixed inset-0 z-[100] flex items-center justify-center p-4"><div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showSettings=false"></div><div class="bg-white w-full max-w-4xl h-[85vh] rounded-3xl shadow-2xl flex overflow-hidden relative z-10"><div class="w-48 bg-zinc-50 border-r border-zinc-100 p-4 space-y-1"><div class="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3 px-2">Settings</div><button @click="settingTab='creds'" :class="settingTab==='creds'?'bg-white shadow text-zinc-900':'text-zinc-500 hover:bg-zinc-100'" class="w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition">凭证管理</button><button @click="settingTab='models'" :class="settingTab==='models'?'bg-white shadow text-zinc-900':'text-zinc-500 hover:bg-zinc-100'" class="w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition">模型管理</button><div class="h-px bg-zinc-200 my-2"></div><button @click="handleExport" class="w-full text-left px-3 py-2 rounded-lg text-sm text-zinc-600 hover:bg-zinc-100 transition">导出配置</button><button onclick="document.getElementById('hidden-import-input').click()" class="w-full text-left px-3 py-2 rounded-lg text-sm text-zinc-600 hover:bg-zinc-100 transition cursor-pointer">导入配置</button><button @click="clearConfig" class="w-full text-left px-3 py-2 rounded-lg text-sm text-red-500 hover:bg-red-50 transition">重置所有</button><input type="file" id="hidden-import-input" @change="handleImport" class="hidden" accept=".json"></div><div class="flex-1 overflow-y-auto p-8 bg-white"><div class="flex justify-between items-center mb-6"><h2 class="text-2xl font-bold text-zinc-900">{{ settingTab==='creds'?'凭证':'模型' }}管理</h2><button @click="showSettings=false" class="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 flex items-center justify-center transition"><i class="ph ph-x"></i></button></div><div v-if="settingTab==='creds'" class="space-y-4"><div v-for="(c,i) in credentials" :key="c.id" class="bg-zinc-50 border border-zinc-200 rounded-xl p-4 space-y-3 relative group"><button @click="credentials.splice(i,1)" class="absolute top-4 right-4 text-zinc-300 hover:text-red-500 transition"><i class="ph ph-trash"></i></button><div class="grid grid-cols-2 gap-4"><div><label class="text-xs font-bold text-zinc-400">Name</label><input v-model="c.name" class="w-full bg-white border border-zinc-200 rounded px-2 py-1 text-sm outline-none focus:border-zinc-900"></div><div><label class="text-xs font-bold text-zinc-400">Base URL</label><input v-model="c.baseUrl" class="w-full bg-white border border-zinc-200 rounded px-2 py-1 text-sm outline-none focus:border-zinc-900"></div><div class="col-span-2"><label class="text-xs font-bold text-zinc-400">Token</label><input v-model="c.token" type="password" class="w-full bg-white border border-zinc-200 rounded px-2 py-1 text-sm outline-none focus:border-zinc-900"></div></div></div><button @click="createNew('credential')" class="w-full py-3 border-2 border-dashed border-zinc-200 rounded-xl text-zinc-400 hover:border-zinc-400 hover:text-zinc-600 transition font-bold">+ 添加凭证</button></div><div v-if="settingTab==='models'" class="space-y-6"><div v-for="(m,i) in models" :key="m.id" class="bg-zinc-50 border border-zinc-200 rounded-xl p-5 space-y-4 relative"><button @click="models.splice(i,1)" class="absolute top-4 right-4 text-zinc-300 hover:text-red-500 transition"><i class="ph ph-trash"></i></button><div class="grid grid-cols-2 gap-4"><div><label class="text-xs font-bold text-zinc-400">Model Name</label><input v-model="m.name" class="w-full bg-white border border-zinc-200 rounded px-2 py-1.5 text-sm outline-none focus:border-zinc-900"></div><div><label class="text-xs font-bold text-zinc-400">Credential</label><select v-model="m.credentialId" class="w-full bg-white border border-zinc-200 rounded px-2 py-1.5 text-sm outline-none focus:border-zinc-900"><option v-for="c in credentials" :value="c.id">{{ c.name }}</option></select></div><div class="col-span-2 grid grid-cols-2 gap-4"><div><label class="text-xs font-bold text-zinc-400">POST Path</label><input v-model="m.createPath" class="w-full bg-white border border-zinc-200 rounded px-2 py-1.5 text-xs font-mono"></div><div><label class="text-xs font-bold text-zinc-400">Query Path</label><input v-model="m.queryPath" class="w-full bg-white border border-zinc-200 rounded px-2 py-1.5 text-xs font-mono"></div></div><div class="col-span-2 grid grid-cols-3 gap-2"><input v-model="m.paths.taskId" class="bg-white border px-2 py-1 text-xs" placeholder="Task ID Path"><input v-model="m.paths.status" class="bg-white border px-2 py-1 text-xs" placeholder="Status Path"><input v-model="m.paths.outputUrl" class="bg-white border px-2 py-1 text-xs" placeholder="Output URL Path"></div><div class="col-span-2"><label class="text-xs font-bold text-zinc-400">JSON Template</label><textarea v-model="m.bodyTemplate" class="w-full h-32 bg-zinc-900 text-zinc-300 rounded p-3 text-xs font-mono leading-relaxed resize-none"></textarea></div></div></div><button @click="createNew('model')" class="w-full py-3 border-2 border-dashed border-zinc-200 rounded-xl text-zinc-400 hover:border-zinc-400 hover:text-zinc-600 transition font-bold">+ 添加模型</button></div></div></div></transition>
+
+</div>
+
+<script>
+    const { createApp, reactive, ref, computed, watch, onMounted, nextTick } = Vue;
+
+    // === 安全存储包装器 ===
+    const safeStorage = {
+        get: (key) => { try { return localStorage.getItem(key); } catch (e) { return null; } },
+        set: (key, val) => { try { localStorage.setItem(key, val); } catch (e) {} },
+        remove: (key) => { try { localStorage.removeItem(key); } catch (e) {} }
+    };
+
+    // === 核心函数 ===
+    const uuid = () => Math.random().toString(36).substr(2, 9);
+    const formatTime = (ts) => new Date(ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+    const getNested = (obj, path) => path ? path.split('.').reduce((a, b) => a && a[b], obj) : undefined;
+    const copyToClip = (text) => { navigator.clipboard.writeText(text); alert('已复制'); };
+    
+    // 模板解析
+    const parseTemplate = (tpl) => {
+        if (!tpl) return [];
+        const fields = []; const regex = /\{\{(.*?)\}\}/g; let match;
+        while ((match = regex.exec(tpl)) !== null) {
+            const [def, defaultVal] = match[1].split('|'); const parts = def.split(':');
+            fields.push({ key: parts[0], label: parts[0], type: parts[1] || 'text', options: parts.slice(2).join(':').split(',').filter(Boolean), defaultValue: defaultVal || '' });
+        }
+        return fields;
+    };
+
+    // V10.2 新增：JSON 清洗器 (解决问题 2)
+    const cleanJSON = (obj) => {
+        if (Array.isArray(obj)) return obj.filter(v => v !== "" && v !== null && v !== undefined && v !== "undefined").map(cleanJSON);
+        if (typeof obj === 'object' && obj !== null) {
+            Object.keys(obj).forEach(k => { obj[k] = cleanJSON(obj[k]); });
+        }
+        return obj;
+    };
+
+    const app = createApp({
+        setup() {
+            // 状态
+            const credentials = ref([]); const models = ref([]); const tasks = ref([]);
+            const currentTaskId = ref(null); const selectedModelId = ref(''); const showSettings = ref(false); 
+            const settingTab = ref('creds'); const globalDebug = ref(false);
+            const formData = reactive({}); const uploadingKeys = reactive({}); const previews = reactive({}); 
+            const fileInput = ref(null);
+            
+            const showBatch = ref(false); const batchModelId = ref(''); const batchRows = ref([]);
+
+            const STORAGE_KEY = 'nexus-v10-data';
+            const save = () => safeStorage.set(STORAGE_KEY, JSON.stringify({ credentials: credentials.value, models: models.value, tasks: tasks.value }));
+            const load = () => { const s = safeStorage.get(STORAGE_KEY); if(s) { try { const d = JSON.parse(s); credentials.value = d.credentials || []; models.value = d.models || []; tasks.value = d.tasks || []; } catch(e){} } };
+            watch([credentials, models, tasks], save, { deep: true });
+            onMounted(load);
+
+            // Computed
+            const activeItem = computed(() => { if (!activeId.value) return null; return (activeType.value === 'model' ? models.value : credentials.value).find(i => i.id === activeId.value); });
+            const selectedModel = computed(() => models.value.find(m => m.id === selectedModelId.value));
+            const currentTask = computed(() => tasks.value.find(t => t.id === currentTaskId.value));
+            const checkCred = () => { if(!activeItem.value) return false; const c = credentials.value.find(x => x.id === activeItem.value.credentialId); return c && c.token; }
+            const isVideo = (url) => url && (url.includes('.mp4') || url.includes('.mov') || (selectedModel.value?.createPath || '').includes('video'));
+            const parsedFields = computed(() => parseTemplate(selectedModel.value?.bodyTemplate));
+            const parsedBatchFields = computed(() => { const m = models.value.find(m => m.id === batchModelId.value); return parseTemplate(m?.bodyTemplate); });
+
+            // 业务逻辑
+            const onModelChange = () => {
+                // V10.2 修复问题 1：手动触发默认值填充，不依赖 computed 延迟
+                Object.keys(formData).forEach(k => delete formData[k]);
+                if (selectedModel.value) {
+                    const fields = parseTemplate(selectedModel.value.bodyTemplate);
+                    fields.forEach(f => {
+                        formData[f.key] = f.defaultValue || (f.options && f.options.length > 0 ? f.options[0] : '');
+                    });
+                }
+            };
+
+            const runTaskProcessor = async (task, model, cred) => {
+                const log = (msg, type='info', detail=null) => { task.logs.unshift({ time: new Date().toLocaleTimeString(), msg, type, detail }); };
+                try {
+                    let bodyStr = model.bodyTemplate;
+                    const fields = parseTemplate(model.bodyTemplate);
+                    fields.forEach(f => {
+                        let val = task.inputs[f.key];
+                        // 处理未填写的图片：如果是空值，设为 "" (空字符串)
+                        if (val === undefined || val === null) val = "";
+                        if (f.type === 'textarea' && val) val = val.replace(/\n/g, '\\n');
+                        const regex = new RegExp(`\\{\\{${f.key}.*?\\}\\}`, 'g');
+                        bodyStr = bodyStr.replace(regex, val);
+                    });
+                    
+                    log('提交中...', 'info');
+                    
+                    // V10.2 修复问题 2：清洗 JSON，移除空图片
+                    let bodyJSON = JSON.parse(bodyStr);
+                    bodyJSON = cleanJSON(bodyJSON);
+                    
+                    log('请求预览', 'debug', JSON.stringify(bodyJSON, null, 2));
+
+                    let url = cred.baseUrl + model.createPath; const headers = { 'Content-Type': 'application/json' };
+                    if (url.includes('{{token}}')) url = url.replace('{{token}}', cred.token); else headers['Authorization'] = `Bearer ${cred.token}`;
+
+                    const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(bodyJSON) });
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    const data = await res.json();
+                    log('响应', 'debug', JSON.stringify(data, null, 2));
+
+                    if (!model.queryPath) { // Sync
+                        const out = getNested(data, model.paths.outputUrl);
+                        if (out) { task.result = out; task.status = 'success'; log('成功 (同步)', 'success'); }
+                        else { log('无结果URL', 'warn'); task.status = 'failed'; }
+                        return;
+                    }
+                    const taskId = getNested(data, model.paths.taskId);
+                    if (!taskId) throw new Error('无任务ID');
+                    log(`ID: ${taskId}`, 'success');
+                    
+                    const poll = async () => {
+                        if (task.status !== 'polling') return;
+                        try {
+                            const qUrl = cred.baseUrl + model.queryPath.replace('{{task_id}}', taskId);
+                            const qRes = await fetch(qUrl, { headers: { 'Authorization': `Bearer ${cred.token}` }});
+                            const qData = await qRes.json();
+                            const st = getNested(qData, model.paths.status); const out = getNested(qData, model.paths.outputUrl);
+                            log(`状态: ${st}`);
+                            if (out || ['completed', 'success', 'video_generation_completed'].includes(st)) {
+                                if (out) { task.result = out; task.status = 'success'; log('完成！', 'success'); return; }
+                            }
+                            if (['failed', 'error'].includes(st)) { log('失败', 'error', JSON.stringify(qData)); task.status = 'failed'; return; }
+                            setTimeout(poll, 3000);
+                        } catch (e) { log('轮询错: ' + e.message, 'error'); setTimeout(poll, 5000); }
+                    };
+                    poll();
+                } catch (e) { log(e.message, 'error'); task.status = 'failed'; }
+            };
+
+            const createNew = (type) => {
+                const id = uuid();
+                if (type === 'credential') credentials.value.push({ id, name: 'New Key', baseUrl: '', token: '' });
+                else models.value.push({ id, credentialId: '', name: 'New Model', createPath: '/v1/create', queryPath: '', paths: { taskId: '', status: '', outputUrl: '' }, bodyTemplate: '{\n  "prompt": "{{Prompt:textarea}}"\n}' });
+                activeId.value = id; activeType.value = type; viewMode.value = 'edit';
+            };
+            const selectItem = (type, id) => { activeType.value = type; activeId.value = id; viewMode.value = 'run'; };
+            const deleteActive = () => { if(confirm('确认删除？')) { const list = activeType.value === 'model' ? models.value : credentials.value; list.splice(list.findIndex(i => i.id === activeId.value), 1); activeId.value = null; } };
+            const startNewSession = () => { currentTaskId.value = null; selectedModelId.value = ''; Object.keys(formData).forEach(k => delete formData[k]); Object.keys(previews).forEach(k => delete previews[k]); };
+            const viewTask = (id) => { currentTaskId.value = id; };
+            const deleteTask = (id) => { if(confirm('删除?')) { const idx = tasks.value.findIndex(t => t.id === id); if (idx > -1) tasks.value.splice(idx, 1); if (currentTaskId.value === id) currentTaskId.value = null; } };
+            const stopTask = (id) => { const t = tasks.value.find(x => x.id === id); if(t && t.status==='polling' && confirm('终止?')) { t.status='stopped'; t.logs.unshift({time:'', msg:'手动停止', type:'warning'}); } };
+
+            const submitTask = async () => {
+                if (!selectedModel.value) return;
+                const model = selectedModel.value; const cred = credentials.value.find(c => c.id === model.credentialId);
+                if (!cred || !cred.token) return alert('凭证无效');
+                const newTask = { id: uuid(), modelId: model.id, modelName: model.name, startTime: Date.now(), status: 'polling', inputs: JSON.parse(JSON.stringify(formData)), logs: [], result: null, summary: formData['prompt'] || formData['提示词'] || 'Task' };
+                tasks.value.unshift(newTask); currentTaskId.value = newTask.id;
+                runTaskProcessor(newTask, model, cred);
+            };
+
+            const handleUpload = async (e, key, type) => {
+                const file = e.target.files[0]; if (!file) return;
+                uploadingKeys[key] = true;
+                try {
+                    if (type === 'file-base64') {
+                        const r = new FileReader(); r.onload = (ev) => { formData[key] = ev.target.result.split(',')[1]; previews[key] = ev.target.result; uploadingKeys[key] = false; }; r.readAsDataURL(file);
+                    } else {
+                        const fd = new FormData(); fd.append('reqtype', 'fileupload'); fd.append('fileToUpload', file);
+                        const res = await fetch('https://corsproxy.io/?url=https://catbox.moe/user/api.php', { method: 'POST', body: fd });
+                        if (!res.ok) throw new Error('Err'); const url = await res.text(); formData[key] = url; previews[key] = url;
+                    }
+                } catch(e) { alert('上传失败'); } finally { uploadingKeys[key] = false; }
+            };
+
+            const openBatchModal = () => { showBatch.value = true; if(!batchModelId.value && models.value.length > 0) batchModelId.value = models.value[0].id; };
+            const addBatchRow = () => { if(!batchModelId.value) return; const row = {}; parsedBatchFields.value.forEach(f => row[f.key] = f.defaultValue || ''); batchRows.value.push(row); };
+            const downloadTemplate = () => { if(!batchModelId.value) return; const headers = parsedBatchFields.value.map(f => f.key).join(','); const blob = new Blob([headers], {type: 'text/csv'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'template.csv'; a.click(); };
+            const importCSV = (e) => { const f = e.target.files[0]; if(!f) return; const r = new FileReader(); r.onload = (ev) => { const lines = ev.target.result.split(/\r?\n/).filter(l => l.trim()); if(lines.length < 2) return alert('空文件'); const headers = lines[0].split(',').map(h => h.trim()); for(let i=1; i<lines.length; i++) { const cols = lines[i].split(','); const row = {}; headers.forEach((h, idx) => row[h] = cols[idx] || ''); batchRows.value.push(row); } alert(`导入 ${lines.length-1} 条`); }; r.readAsText(f); e.target.value=''; };
+            const handleBatchUpload = async (e, row, key, type) => { const file = e.target.files[0]; if (!file) return; try { if (type === 'file-base64') { const r = new FileReader(); r.onload = (ev) => { row[key] = ev.target.result.split(',')[1]; }; r.readAsDataURL(file); } else { const fd = new FormData(); fd.append('reqtype', 'fileupload'); fd.append('fileToUpload', file); const res = await fetch('https://corsproxy.io/?url=https://catbox.moe/user/api.php', { method: 'POST', body: fd }); if (!res.ok) throw new Error('Err'); row[key] = await res.text(); } } catch(e){ alert('上传失败'); } };
+            const runBatch = () => {
+                const model = models.value.find(m => m.id === batchModelId.value); const cred = credentials.value.find(c => c.id === model.credentialId);
+                if (!cred || !cred.token) return alert('凭证无效');
+                batchRows.value.forEach(row => { const newTask = { id: uuid(), modelId: model.id, modelName: model.name, startTime: Date.now(), status: 'polling', inputs: JSON.parse(JSON.stringify(row)), logs: [], result: null, summary: row['prompt'] || row['提示词'] || 'Batch' }; tasks.value.unshift(newTask); runTaskProcessor(newTask, model, cred); });
+                showBatch.value = false; batchRows.value = [];
+            };
+
+            const triggerImport = () => fileInput.value.click();
+            const handleExport = () => { const blob = new Blob([safeStorage.get(STORAGE_KEY)], {type:'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'nexus-config.json'; a.click(); };
+            const handleImport = (e) => { const r = new FileReader(); r.onload = (ev) => { safeStorage.set(STORAGE_KEY, ev.target.result); load(); alert('导入成功'); }; if(e.target.files[0]) r.readAsText(e.target.files[0]); };
+            const clearConfig = () => { if(confirm('确定重置?')) { safeStorage.remove(STORAGE_KEY); location.reload(); } };
+
+            const activeId = ref(null); const activeType = ref(null); const viewMode = ref('run');
+
+            return { 
+                credentials, models, tasks, currentTaskId, selectedModelId, showSettings, settingTab, globalDebug,
+                currentTask, selectedModel, parsedFields, formData, uploadingKeys, previews,
+                startNewSession, viewTask, deleteTask, stopTask, submitTask, createNew, handleUpload,
+                triggerImport, handleExport, handleImport, fileInput, clearConfig, formatTime, isVideo, copyToClip, checkCred,
+                activeId, activeType, viewMode, deleteActive, selectItem, onModelChange,
+                showBatch, batchModelId, batchRows, parsedBatchFields, openBatchModal, addBatchRow, downloadTemplate, importCSV, handleBatchUpload, runBatch
+            };
+        }
+    });
+
+    app.mount('#app');
+</script>
+</body>
+</html>
