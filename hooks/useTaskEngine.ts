@@ -34,6 +34,20 @@ function addLog(
   const currentTask = useNexusStore.getState().tasks.find((t) => t.id === taskId);
   if (!currentTask) return;
   
+  // 若为状态日志且与最近一条相同，则不重复记录
+  const extractStatus = (text: string) => {
+    const match = text.match(/状态[:：]\s*(.+)$/);
+    return match ? match[1].trim() : null;
+  };
+  const currentStatus = extractStatus(msg);
+  if (currentStatus) {
+    const last = currentTask.logs[0];
+    const lastStatus = last ? extractStatus(last.msg) : null;
+    if (lastStatus && lastStatus === currentStatus) {
+      return;
+    }
+  }
+
   // 更新任务日志（添加到最前面）
   useNexusStore.getState().updateTask(taskId, {
     logs: [log, ...currentTask.logs],
@@ -111,6 +125,15 @@ export function useTaskEngine() {
         let val = task.inputs[f.key];
         // 处理未填写的图片：如果是空值，设为 "" (空字符串)
         if (val === undefined || val === null) val = "";
+        // 类型转换：数字/整数/布尔
+        const t = (f.type || "").toLowerCase();
+        if (t === "number" || t === "integer" || t === "int") {
+          const num = Number(val);
+          if (!Number.isNaN(num)) val = num;
+        } else if (t === "boolean" || t === "bool") {
+          if (val === "true" || val === true) val = true;
+          else if (val === "false" || val === false) val = false;
+        }
         // 处理 textarea 类型的换行符
         if (f.type === "textarea" && val) {
           val = val.replace(/\n/g, "\\n");

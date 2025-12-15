@@ -75,29 +75,26 @@ export function TaskConfigurator({
         };
         reader.readAsDataURL(file);
       } else {
-        // file-url: 上传到 catbox.moe
+        // file-url: 上传到 catbox.moe（通过后端代理避免 CORS）
         const formData = new FormData();
-        formData.append("reqtype", "fileupload");
-        formData.append("fileToUpload", file);
+        formData.append("file", file);
 
-        const response = await fetch(
-          "https://corsproxy.io/?url=https://catbox.moe/user/api.php",
-          {
-            method: "POST",
-            body: formData,
-          }
-        );
+        const response = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
 
-        if (!response.ok) throw new Error("上传失败");
+        if (!response.ok) throw new Error(`上传失败(${response.status})`);
 
-        const url = await response.text();
+        const data = await response.json();
+        const url = (data.url as string).trim();
         setFormData((prev) => ({ ...prev, [key]: url }));
         setPreviews((prev) => ({ ...prev, [key]: url }));
-        setUploadingKeys((prev) => ({ ...prev, [key]: false }));
       }
     } catch (error) {
       console.error("上传失败:", error);
       alert("上传失败");
+    } finally {
       setUploadingKeys((prev) => ({ ...prev, [key]: false }));
     }
   };
@@ -147,8 +144,12 @@ export function TaskConfigurator({
                     {field.label}
                   </label>
 
-                  {/* Select 类型 */}
-                  {field.type === "select" && (
+                  {/* 下拉选择：select，或带选项的 string/number/boolean */}
+                  {(field.type === "select" ||
+                    (field.options.length > 0 &&
+                      ["string", "number", "integer", "int", "boolean", "bool", "text"].includes(
+                        field.type
+                      ))) && (
                     <select
                       value={formData[field.key] || ""}
                       onChange={(e) =>
@@ -231,16 +232,30 @@ export function TaskConfigurator({
                     </div>
                   )}
 
-                  {/* 普通文本输入 */}
+                  {/* 普通文本/数字输入 */}
                   {field.type !== "select" &&
                     field.type !== "textarea" &&
                     field.type !== "file-url" &&
-                    field.type !== "file-base64" && (
+                    field.type !== "file-base64" &&
+                    !(
+                      ["number", "integer", "int", "boolean", "bool"].includes(field.type) &&
+                      field.options.length > 0
+                    ) && (
                       <input
-                        type="text"
-                        value={formData[field.key] || ""}
+                        type={
+                          ["number", "integer", "int"].includes(field.type)
+                            ? "number"
+                            : "text"
+                        }
+                        value={formData[field.key] ?? ""}
                         onChange={(e) =>
-                          setFormData({ ...formData, [field.key]: e.target.value })
+                          setFormData({
+                            ...formData,
+                            [field.key]:
+                              ["number", "integer", "int"].includes(field.type)
+                                ? e.target.value
+                                : e.target.value,
+                          })
                         }
                         className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 text-sm text-zinc-900 dark:text-zinc-50 outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-50 transition"
                         placeholder={`输入 ${field.label}...`}

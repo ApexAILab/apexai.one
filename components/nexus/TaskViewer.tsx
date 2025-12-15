@@ -166,8 +166,8 @@ export function TaskViewer({ task }: { task: Task }) {
         </div>
 
         {/* 日志区域（仿终端样式） */}
-        <div className="bg-zinc-900 dark:bg-black rounded-2xl p-5 h-64 overflow-y-auto text-xs font-mono space-y-2 shadow-inner border border-zinc-800">
-          <div className="flex justify-between text-zinc-500 mb-4 border-b border-zinc-800 pb-2">
+        <div className="bg-zinc-900 dark:bg-black rounded-2xl p-5 h-64 text-xs font-mono shadow-inner border border-zinc-800 flex flex-col">
+          <div className="flex justify-between text-zinc-500 border-b border-zinc-800 pb-2">
             <span className="font-bold tracking-wider text-zinc-400">LOGS</span>
             {/* 调试模式和清除按钮 */}
             <div className="flex items-center gap-4">
@@ -189,52 +189,54 @@ export function TaskViewer({ task }: { task: Task }) {
             </div>
           </div>
 
-          {/* 运行状态提示 */}
-          {task.status === "polling" && (
-            <div className="text-blue-400 animate-pulse text-[10px] mb-2">
-              Running...
-            </div>
-          )}
-          {task.status === "stopped" && (
-            <div className="text-amber-500 text-[10px] mb-2">Terminated</div>
-          )}
-
-          {/* 日志列表 */}
-          {task.logs.length === 0 ? (
-            <div className="text-zinc-500 text-[10px]">暂无日志</div>
-          ) : (
-            task.logs.map((log, i) => (
-              <div key={i} className="flex flex-col space-y-1">
-                <div className="flex space-x-3">
-                  <span className="text-zinc-600 dark:text-zinc-500 select-none w-14 shrink-0">
-                    {log.time}
-                  </span>
-                  <span
-                    className={
-                      log.type === "error"
-                        ? "text-red-400"
-                        : log.type === "success"
-                        ? "text-emerald-400"
-                        : log.type === "info"
-                        ? "text-zinc-300"
-                        : log.type === "debug"
-                        ? "text-zinc-500"
-                        : log.type === "warning"
-                        ? "text-amber-400"
-                        : "text-zinc-300"
-                    }
-                  >
-                    {log.msg}
-                  </span>
-                </div>
-                {globalDebug && log.detail && (
-                  <pre className="ml-16 bg-black/30 text-zinc-500 p-2 rounded overflow-x-auto whitespace-pre-wrap">
-                    {log.detail}
-                  </pre>
-                )}
+          <div className="flex-1 overflow-y-auto space-y-2 pt-2">
+            {/* 运行状态提示 */}
+            {task.status === "polling" && (
+              <div className="text-blue-400 animate-pulse text-[10px]">
+                Running...
               </div>
-            ))
-          )}
+            )}
+            {task.status === "stopped" && (
+              <div className="text-amber-500 text-[10px]">Terminated</div>
+            )}
+
+            {/* 日志列表 */}
+            {task.logs.length === 0 ? (
+              <div className="text-zinc-500 text-[10px]">暂无日志</div>
+            ) : (
+              task.logs.map((log, i) => (
+                <div key={i} className="flex flex-col space-y-1">
+                  <div className="flex space-x-3">
+                    <span className="text-zinc-600 dark:text-zinc-500 select-none w-14 shrink-0">
+                      {log.time}
+                    </span>
+                    <span
+                      className={
+                        log.type === "error"
+                          ? "text-red-400"
+                          : log.type === "success"
+                          ? "text-emerald-400"
+                          : log.type === "info"
+                          ? "text-zinc-300"
+                          : log.type === "debug"
+                          ? "text-zinc-500"
+                          : log.type === "warning"
+                          ? "text-amber-400"
+                          : "text-zinc-300"
+                      }
+                    >
+                      {log.msg}
+                    </span>
+                  </div>
+                  {globalDebug && log.detail && (
+                    <pre className="ml-16 bg-black/30 text-zinc-500 p-2 rounded overflow-x-auto whitespace-pre-wrap">
+                      {log.detail}
+                    </pre>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
     </div>

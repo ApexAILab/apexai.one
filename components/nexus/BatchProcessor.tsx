@@ -84,28 +84,25 @@ export function BatchProcessor({
         };
         reader.readAsDataURL(file);
       } else {
-        // file-url: 上传到 catbox.moe
+        // file-url: 上传到 catbox.moe（通过后端代理避免 CORS）
         const formData = new FormData();
-        formData.append("reqtype", "fileupload");
-        formData.append("fileToUpload", file);
+        formData.append("file", file);
 
-        const response = await fetch(
-          "https://corsproxy.io/?url=https://catbox.moe/user/api.php",
-          {
-            method: "POST",
-            body: formData,
-          }
-        );
+        const response = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
 
-        if (!response.ok) throw new Error("上传失败");
+        if (!response.ok) throw new Error(`上传失败(${response.status})`);
 
-        const url = await response.text();
+        const data = await response.json();
+        const url = (data.url as string).trim();
         row[key] = url;
-        setUploadingStates((prev) => ({ ...prev, [uploadKey]: false }));
       }
     } catch (error) {
       console.error("上传失败:", error);
       alert("上传失败");
+    } finally {
       setUploadingStates((prev) => ({ ...prev, [uploadKey]: false }));
     }
   };
@@ -268,7 +265,11 @@ export function BatchProcessor({
                                 rows={1}
                                 className="w-full bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg px-2 py-1 text-xs resize-y outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-50 text-zinc-900 dark:text-zinc-50 transition"
                               />
-                            ) : f.type === "select" ? (
+                            ) : f.type === "select" ||
+                              (f.options.length > 0 &&
+                                ["string", "number", "integer", "int", "boolean", "bool", "text"].includes(
+                                  f.type
+                                )) ? (
                               <select
                                 value={row[f.key] || ""}
                                 onChange={(e) =>
@@ -307,12 +308,23 @@ export function BatchProcessor({
                                   />
                                 </label>
                               </div>
-                            ) : (
+                            ) : ["number", "integer", "int", "boolean", "bool"].includes(f.type) &&
+                              f.options.length > 0 ? null : (
                               <input
-                                type="text"
-                                value={row[f.key] || ""}
+                                type={
+                                  ["number", "integer", "int"].includes(f.type)
+                                    ? "number"
+                                    : "text"
+                                }
+                                value={row[f.key] ?? ""}
                                 onChange={(e) =>
-                                  updateRow(idx, f.key, e.target.value)
+                                  updateRow(
+                                    idx,
+                                    f.key,
+                                    ["number", "integer", "int"].includes(f.type)
+                                      ? e.target.value
+                                      : e.target.value
+                                  )
                                 }
                                 className="w-full bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-50 text-zinc-900 dark:text-zinc-50 transition"
                               />
