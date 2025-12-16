@@ -29,6 +29,7 @@ export function SettingsDialog({
   } = useNexusStore();
 
   const [settingTab, setSettingTab] = useState<"creds" | "models">("creds");
+  const [showDocs, setShowDocs] = useState(false);
 
   // 生成唯一 ID（使用时间戳 + 随机数，避免 hydration 问题）
   const generateId = () => {
@@ -155,12 +156,12 @@ export function SettingsDialog({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {/* 操作按钮 */}
+            {/* 操作按钮：说明、导入、导出、重置 */}
             <button
-              onClick={handleExport}
+              onClick={() => setShowDocs(true)}
               className="px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition"
             >
-              导出
+              说明
             </button>
             <label className="px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition cursor-pointer">
               导入
@@ -171,6 +172,12 @@ export function SettingsDialog({
                 className="hidden"
               />
             </label>
+            <button
+              onClick={handleExport}
+              className="px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition"
+            >
+              导出
+            </button>
             <button
               onClick={clearConfig}
               className="px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
@@ -238,7 +245,6 @@ export function SettingsDialog({
                         Token
                       </label>
                       <input
-                        type="password"
                         value={cred.token}
                         onChange={(e) =>
                           updateCredential(cred.id, { token: e.target.value })
@@ -402,6 +408,63 @@ export function SettingsDialog({
             </div>
           )}
         </div>
+
+        {/* 请求体语法说明弹层 */}
+        {showDocs && (
+          <div className="absolute inset-0 z-20 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="max-w-3xl w-full bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-2xl p-6 space-y-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">
+                  请求体模板语法说明
+                </h3>
+                <button
+                  onClick={() => setShowDocs(false)}
+                  className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 flex items-center justify-center transition text-zinc-500 dark:text-zinc-400"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="space-y-3 text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">
+                <p>
+                  模板占位符统一使用{" "}
+                  <code className="px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800">
+                    {"{{字段名:类型:选项1,选项2|默认值}}"}
+                  </code>{" "}
+                  的格式，后端会根据类型自动转换为正确的 JSON。
+                </p>
+                <ul className="list-disc list-inside space-y-1">
+                  <li>
+                    <span className="font-semibold">文本/字符串：</span>
+                    <code>{"{{提示词:textarea}}"}</code>、{" "}
+                    <code>{"{{标题:text|Untitled}}"}</code>
+                  </li>
+                  <li>
+                    <span className="font-semibold">下拉选择（字符串）：</span>
+                    <code>{"{{尺寸:select:small,large|large}}"}</code>
+                  </li>
+                  <li>
+                    <span className="font-semibold">整数/数字：</span>
+                    <code>{"{{duration:integer|10}}"}</code>{" "}
+                    → JSON 中为数字 <code>10</code>
+                    ，带选项时：
+                    <code>{"{{duration:integer:10,15|10}}"}</code> 会渲染为下拉框。
+                  </li>
+                  <li>
+                    <span className="font-semibold">布尔值：</span>
+                    <code>{"{{watermark:boolean:true,false|true}}"}</code>{" "}
+                    → JSON 中为 <code>true / false</code>。
+                  </li>
+                  <li>
+                    <span className="font-semibold">文件：</span>
+                    <code>{"{{参考图:file-url}}"}</code>（上传后得到 HTTPS
+                    链接），或 <code>{"{{参考图:file-base64}}"}</code>{" "}
+                    （Base64 编码）。
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

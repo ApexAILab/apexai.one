@@ -18,7 +18,7 @@ export function TaskList({
   currentTaskId: string | null;
   onSelectTask: (taskId: string) => void;
 }) {
-  const { deleteTask } = useNexusStore();
+  const { deleteTask, clearTasks } = useNexusStore();
   const [mounted, setMounted] = useState(false);
   const [formattedTimes, setFormattedTimes] = useState<Record<string, string>>({});
 
@@ -85,7 +85,20 @@ export function TaskList({
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
+      <div className="flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400">
+        <span>历史任务（{tasks.length}）</span>
+        <button
+          onClick={() => {
+            if (confirm("确定清空所有历史任务？此操作不可恢复！")) {
+              clearTasks();
+            }
+          }}
+          className="px-2 py-0.5 rounded-full border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
+        >
+          清空
+        </button>
+      </div>
       {tasks.map((task) => (
         <div
           key={task.id}

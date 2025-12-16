@@ -180,17 +180,37 @@ export function BatchProcessor({
     alert(`已提交 ${batchRows.length} 个任务`);
   };
 
+  // 根据字段类型控制列宽：文本类更宽，选择类略窄
+  const getColumnWidthClass = (type: string) => {
+    const t = type.toLowerCase();
+    if (t === "textarea" || t === "text" || t === "string" || t === "file-url" || t === "file-base64") {
+      return "min-w-[220px]";
+    }
+    if (t === "select" || t === "boolean" || t === "bool" || t === "integer" || t === "int" || t === "number") {
+      return "min-w-[140px]";
+    }
+    return "";
+  };
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-zinc-950">
-
       {/* 表格区域 - 只有选中模型后才显示 */}
       {batchModel ? (
         <>
-          {/* 工具栏 */}
-          <div className="px-8 py-3 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
+          {/* 顶部工具栏 */}
+          <div className="px-8 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur">
             <div className="max-w-6xl mx-auto flex items-center justify-between">
-              <div className="text-sm text-zinc-500 dark:text-zinc-400">
-                模型: <span className="font-medium text-zinc-700 dark:text-zinc-300">{batchModel.name}</span>
+              <div className="flex items-center gap-3">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-xs text-zinc-600 dark:text-zinc-300">
+                  <Layers size={14} />
+                  <span className="font-medium">批量任务</span>
+                </div>
+                <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                  当前模型：{" "}
+                  <span className="font-medium text-zinc-800 dark:text-zinc-200">
+                    {batchModel.name}
+                  </span>
+                </div>
               </div>
               <div className="flex gap-2 text-xs">
                 <button
@@ -222,7 +242,7 @@ export function BatchProcessor({
           </div>
 
           {/* 表格内容 */}
-          <div className="flex-1 overflow-auto bg-white dark:bg-zinc-950 p-6">
+          <div className="flex-1 overflow-auto bg-zinc-50 dark:bg-zinc-950/80 p-6">
             <div className="max-w-6xl mx-auto">
               {parsedBatchFields.length === 0 ? (
                 <div className="h-full flex items-center justify-center text-zinc-400 dark:text-zinc-600 flex-col">
@@ -230,119 +250,161 @@ export function BatchProcessor({
                 </div>
               ) : batchRows.length === 0 ? (
                 <div className="h-full flex items-center justify-center text-zinc-400 dark:text-zinc-600 flex-col">
-                  <p>点击"添加一行"开始批量作业</p>
+                  <p className="text-sm mb-1">还没有批量任务</p>
+                  <p className="text-xs">点击上方「添加一行」开始配置批量作业</p>
                 </div>
               ) : (
-                <table className="w-full text-left border-collapse text-sm">
-                  <thead>
-                    <tr className="border-b border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400">
-                      <th className="p-3 font-medium w-16">#</th>
-                      {parsedBatchFields.map((f) => (
-                        <th key={f.key} className="p-3 font-medium">
-                          {f.label}
-                        </th>
-                      ))}
-                      <th className="p-3 font-medium w-20">操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {batchRows.map((row, idx) => (
-                      <tr
-                        key={idx}
-                        className="border-b border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900/50 group"
-                      >
-                        <td className="p-3 text-zinc-400 dark:text-zinc-500">
-                          {idx + 1}
-                        </td>
-                        {parsedBatchFields.map((f) => (
-                          <td key={f.key} className="p-2">
-                            {f.type === "textarea" ? (
-                              <textarea
-                                value={row[f.key] || ""}
-                                onChange={(e) =>
-                                  updateRow(idx, f.key, e.target.value)
-                                }
-                                rows={1}
-                                className="w-full bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg px-2 py-1 text-xs resize-y outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-50 text-zinc-900 dark:text-zinc-50 transition"
-                              />
-                            ) : f.type === "select" ||
-                              (f.options.length > 0 &&
-                                ["string", "number", "integer", "int", "boolean", "bool", "text"].includes(
-                                  f.type
-                                )) ? (
-                              <select
-                                value={row[f.key] || ""}
-                                onChange={(e) =>
-                                  updateRow(idx, f.key, e.target.value)
-                                }
-                                className="w-full bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-50 text-zinc-900 dark:text-zinc-50 transition"
-                              >
-                                {f.options.map((opt) => (
-                                  <option key={opt} value={opt}>
-                                    {opt}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : f.type === "file-url" || f.type === "file-base64" ? (
-                              <div className="relative flex items-center gap-1">
-                                <input
-                                  type="text"
-                                  value={row[f.key] || ""}
-                                  onChange={(e) => updateRow(idx, f.key, e.target.value)}
-                                  className="flex-1 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg px-2 py-1 text-xs outline-none truncate focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-50 text-zinc-900 dark:text-zinc-50 transition"
-                                  placeholder={f.type}
-                                />
-                                <label className="cursor-pointer text-zinc-400 dark:text-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-400 transition p-1">
-                                  {uploadingStates[`${idx}-${f.key}`] ? (
-                                    <Loader2 size={14} className="animate-spin" />
-                                  ) : (
-                                    <Upload size={14} />
-                                  )}
-                                  <input
-                                    type="file"
-                                    className="hidden"
-                                    accept="image/*"
-                                    onChange={(e) =>
-                                      handleBatchUpload(e, row, f.key, f.type)
-                                    }
-                                  />
-                                </label>
-                              </div>
-                            ) : ["number", "integer", "int", "boolean", "bool"].includes(f.type) &&
-                              f.options.length > 0 ? null : (
-                              <input
-                                type={
-                                  ["number", "integer", "int"].includes(f.type)
-                                    ? "number"
-                                    : "text"
-                                }
-                                value={row[f.key] ?? ""}
-                                onChange={(e) =>
-                                  updateRow(
-                                    idx,
-                                    f.key,
-                                    ["number", "integer", "int"].includes(f.type)
-                                      ? e.target.value
-                                      : e.target.value
-                                  )
-                                }
-                                className="w-full bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-50 text-zinc-900 dark:text-zinc-50 transition"
-                              />
-                            )}
-                          </td>
-                        ))}
-                        <td className="p-3">
-                          <button
-                            onClick={() => deleteRow(idx)}
-                            className="text-zinc-300 dark:text-zinc-600 hover:text-red-500 transition"
+                <div className="bg-white dark:bg-zinc-900/70 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
+                  <div className="overflow-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="border-b border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 bg-zinc-50/80 dark:bg-zinc-900/60">
+                          <th className="p-3 font-medium w-16 text-center">序号</th>
+                          {parsedBatchFields.map((f) => (
+                            <th
+                              key={f.key}
+                              className={`p-3 font-medium text-center ${getColumnWidthClass(f.type)}`}
+                            >
+                              {f.label}
+                            </th>
+                          ))}
+                          <th className="p-3 font-medium w-20 text-center">操作</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {batchRows.map((row, idx) => (
+                          <tr
+                            key={idx}
+                            className="border-b border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900/60 group align-top"
                           >
-                            <X size={16} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                            <td className="p-3 text-zinc-400 dark:text-zinc-500 align-middle text-center">
+                              {idx + 1}
+                            </td>
+                            {parsedBatchFields.map((f) => (
+                              <td
+                                key={f.key}
+                                className={`p-2 align-middle ${getColumnWidthClass(f.type)}`}
+                              >
+                                {f.type === "textarea" ? (
+                                  <textarea
+                                    value={row[f.key] || ""}
+                                    onChange={(e) =>
+                                      updateRow(idx, f.key, e.target.value)
+                                    }
+                                    rows={3}
+                                    className="w-full bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg px-2 py-1.5 text-xs resize-y outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-50 text-zinc-900 dark:text-zinc-50 transition"
+                                  />
+                                ) : f.type === "select" ||
+                                  (f.options.length > 0 &&
+                                    ["string", "number", "integer", "int", "boolean", "bool", "text"].includes(
+                                      f.type
+                                    )) ? (
+                                  <select
+                                    value={row[f.key] || ""}
+                                    onChange={(e) =>
+                                      updateRow(idx, f.key, e.target.value)
+                                    }
+                                    className="w-full bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-50 text-zinc-900 dark:text-zinc-50 transition"
+                                  >
+                                    {f.options.map((opt) => (
+                                      <option key={opt} value={opt}>
+                                        {opt}
+                                      </option>
+                                    ))}
+                                  </select>
+                                ) : f.type === "file-url" || f.type === "file-base64" ? (
+                                  <div className="space-y-2">
+                                    <div className="relative flex items-center gap-1">
+                                      <input
+                                        type="text"
+                                        value={row[f.key] || ""}
+                                        onChange={(e) =>
+                                          updateRow(idx, f.key, e.target.value)
+                                        }
+                                        className="flex-1 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg px-2 py-1 text-xs outline-none truncate focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-50 text-zinc-900 dark:text-zinc-50 transition"
+                                        placeholder={f.type}
+                                      />
+                                      <label className="cursor-pointer text-zinc-400 dark:text-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-400 transition p-1">
+                                        {uploadingStates[`${idx}-${f.key}`] ? (
+                                          <Loader2 size={14} className="animate-spin" />
+                                        ) : (
+                                          <Upload size={14} />
+                                        )}
+                                        <input
+                                          type="file"
+                                          className="hidden"
+                                          accept="image/*"
+                                          onChange={(e) =>
+                                            handleBatchUpload(e, row, f.key, f.type)
+                                          }
+                                        />
+                                      </label>
+                                    </div>
+                                    {row[f.key] && f.type === "file-url" && (
+                                      <div className="flex items-start gap-2 pt-1">
+                                        <a
+                                          href={row[f.key]}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="block w-20 h-12 rounded-lg overflow-hidden bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 flex items-center justify-center shrink-0"
+                                        >
+                                          <img
+                                            src={row[f.key]}
+                                            alt="preview"
+                                            className="max-w-full max-h-full object-cover"
+                                          />
+                                        </a>
+                                        <div className="flex-1 min-w-0">
+                                          <a
+                                            href={row[f.key]}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="block text-[10px] text-zinc-500 dark:text-zinc-400 break-all hover:underline"
+                                          >
+                                            {row[f.key]}
+                                          </a>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : ["number", "integer", "int", "boolean", "bool"].includes(
+                                    f.type
+                                  ) && f.options.length > 0 ? null : (
+                                  <input
+                                    type={
+                                      ["number", "integer", "int"].includes(f.type)
+                                        ? "number"
+                                        : "text"
+                                    }
+                                    value={row[f.key] ?? ""}
+                                    onChange={(e) =>
+                                      updateRow(
+                                        idx,
+                                        f.key,
+                                        ["number", "integer", "int"].includes(f.type)
+                                          ? e.target.value
+                                          : e.target.value
+                                      )
+                                    }
+                                    className="w-full bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-50 text-zinc-900 dark:text-zinc-50 transition"
+                                  />
+                                )}
+                              </td>
+                            ))}
+                            <td className="p-3 text-center align-middle">
+                              <button
+                                onClick={() => deleteRow(idx)}
+                                className="text-zinc-300 dark:text-zinc-600 hover:text-red-500 transition"
+                              >
+                                <X size={16} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               )}
             </div>
           </div>

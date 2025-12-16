@@ -27,6 +27,7 @@ interface NexusStore {
   addTask: (task: Task) => void;
   updateTask: (id: string, updates: Partial<Task>) => void;
   deleteTask: (id: string) => void;
+  clearTasks: () => void;
 }
 
 /**
@@ -93,6 +94,11 @@ export const useNexusStore = create<NexusStore>()(
       deleteTask: (id) =>
         set((state) => ({
           tasks: state.tasks.filter((t) => t.id !== id),
+        })),
+
+      clearTasks: () =>
+        set(() => ({
+          tasks: [],
         })),
     }),
     {

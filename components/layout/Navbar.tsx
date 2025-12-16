@@ -11,7 +11,7 @@ import Link from "next/link";
  * Apple/OpenAI 风格的极简导航栏
  */
 export function Navbar() {
-  const { theme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
 
@@ -48,6 +48,16 @@ export function Navbar() {
 
           {/* 链接区域 (中部) */}
           <div className="hidden md:flex items-center gap-8">
+            <Link
+              href="/stream"
+              className={`text-sm font-medium transition-colors ${
+                pathname === "/stream"
+                  ? "text-zinc-900 dark:text-zinc-50"
+                  : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-50"
+              }`}
+            >
+              StreamDeck
+            </Link>
             <Link
               href="/nexus"
               className={`text-sm font-medium transition-colors ${
@@ -86,11 +96,13 @@ export function Navbar() {
             {/* 主题切换按钮 */}
             {mounted && (
               <button
-                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                onClick={() =>
+                  setTheme(resolvedTheme === "dark" ? "light" : "dark")
+                }
                 className="text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-50 transition-colors"
                 aria-label="切换主题"
               >
-                {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
+                {resolvedTheme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
               </button>
             )}
 
