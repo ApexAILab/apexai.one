@@ -49,6 +49,16 @@ export function Navbar() {
           {/* 链接区域 (中部) */}
           <div className="hidden md:flex items-center gap-8">
             <Link
+              href="/secondbrain"
+              className={`text-sm font-medium transition-colors ${
+                pathname === "/secondbrain"
+                  ? "text-zinc-900 dark:text-zinc-50"
+                  : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-50"
+              }`}
+            >
+              SecondBrain
+            </Link>
+            <Link
               href="/stream"
               className={`text-sm font-medium transition-colors ${
                 pathname === "/stream"

@@ -1,0 +1,58 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") 
+  directUrl = env("DIRECT_URL")  
+}
+
+// SecondBrain 数据模型
+
+model Post {
+  id          String   @id @default(cuid())
+  title       String?
+  content     String   @db.Text
+  type        PostType @default(THOUGHT)
+  tags        String[]
+  images      String[] // 图片 URL 数组
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // AI 相关字段
+  embeddings  Float[]
+  summary     String?  @db.Text
+  aiInsights  Json?
+  
+  // 关联对话
+  conversations Conversation[]
+  
+  @@index([createdAt])
+  @@index([type])
+  @@map("posts")
+}
+
+model Conversation {
+  id          String   @id @default(cuid())
+  postId      String?
+  post        Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  
+  userMessage String   @db.Text
+  aiResponse  String   @db.Text
+  context     Json?
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([postId])
+  @@index([createdAt])
+  @@map("conversations")
+}
+
+enum PostType {
+  THOUGHT
+  NOTE
+  DIARY
+  QUESTION
+  INSIGHT
+}
