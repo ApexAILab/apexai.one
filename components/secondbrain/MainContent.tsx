@@ -232,27 +232,37 @@ export function MainContent({ selectedDate, selectedPostId, onRefresh, searchQue
   // 获取所有唯一的标签（从服务端获取所有帖子的标签）
   const fetchAllTags = async () => {
     try {
-      // 获取所有帖子的标签（只获取 tags 字段，不获取完整内容）
-      const response = await fetch('/api/posts?limit=10000&offset=0');
+      // 使用专门的标签 API 端点，只查询 tags 字段，提高性能
+      const response = await fetch('/api/posts/tags');
       const result = await response.json();
       if (result.success) {
-        const postsData = result.data || [];
-        const tagSet = new Set<string>();
-        postsData.forEach((post: Post) => {
-          const postTags = post.tags;
-          if (postTags && Array.isArray(postTags) && postTags.length > 0) {
-            postTags.forEach((tag: any) => {
-              const tagStr = String(tag).trim();
-              if (tagStr) {
-                tagSet.add(tagStr);
-              }
-            });
-          }
-        });
-        setAllTags(Array.from(tagSet).sort());
+        setAllTags(result.data || []);
       }
     } catch (error) {
       console.error('Fetch all tags error:', error);
+      // 如果新 API 失败，尝试降级到旧方法（但限制数量）
+      try {
+        const fallbackResponse = await fetch('/api/posts?limit=1000&offset=0');
+        const fallbackResult = await fallbackResponse.json();
+        if (fallbackResult.success) {
+          const postsData = fallbackResult.data || [];
+          const tagSet = new Set<string>();
+          postsData.forEach((post: Post) => {
+            const postTags = post.tags;
+            if (postTags && Array.isArray(postTags) && postTags.length > 0) {
+              postTags.forEach((tag: any) => {
+                const tagStr = String(tag).trim();
+                if (tagStr) {
+                  tagSet.add(tagStr);
+                }
+              });
+            }
+          });
+          setAllTags(Array.from(tagSet).sort());
+        }
+      } catch (fallbackError) {
+        console.error('Fallback fetch tags error:', fallbackError);
+      }
     }
   };
 
@@ -651,14 +661,14 @@ export function MainContent({ selectedDate, selectedPostId, onRefresh, searchQue
   };
 
   return (
-    <div className="flex-1 flex flex-col gap-2 overflow-hidden">
+    <div className="flex-1 flex flex-col gap-2 overflow-hidden w-full">
       {/* 发布框 */}
-      <div className="rounded-sm border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/70 p-4 shadow-sm">
+      <div className="rounded-sm sm:rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/70 p-3 sm:p-4 shadow-sm">
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder="记录你的想法..."
-          className="w-full h-24 bg-transparent border-none outline-none resize-none text-sm text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+          className="w-full h-20 sm:h-24 bg-transparent border-none outline-none resize-none text-sm sm:text-base text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
         />
         {/* 图片预览区域 */}
         {images.length > 0 && (
@@ -668,19 +678,19 @@ export function MainContent({ selectedDate, selectedPostId, onRefresh, searchQue
                 <img
                   src={url}
                   alt={`Upload ${index + 1}`}
-                  className="w-20 h-20 object-cover rounded-sm border border-zinc-200 dark:border-zinc-800"
+                  className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-sm border border-zinc-200 dark:border-zinc-800"
                 />
                 <button
                   onClick={() => handleRemoveImage(index)}
-                  className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="absolute -top-1 -right-1 w-6 h-6 sm:w-5 sm:h-5 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity active:scale-90"
                 >
-                  <X size={12} />
+                  <X size={14} className="sm:w-3 sm:h-3" />
                 </button>
               </div>
             ))}
           </div>
         )}
-        <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-800">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-800">
           {/* 图片上传和标签输入 */}
           <div className="flex-1 flex items-center gap-2 flex-wrap">
             <input
@@ -693,7 +703,7 @@ export function MainContent({ selectedDate, selectedPostId, onRefresh, searchQue
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="p-1.5 rounded-sm border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              className="p-2 sm:p-1.5 rounded-sm border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors active:scale-95"
               title="上传图片"
             >
               {uploadingImages.size > 0 ? (
@@ -736,7 +746,7 @@ export function MainContent({ selectedDate, selectedPostId, onRefresh, searchQue
           <button
             onClick={onPublishClick}
             disabled={(!content.trim() && images.length === 0) || publishing}
-            className="px-4 py-2 rounded-sm bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-sm font-medium hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-sm bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-sm font-medium hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-95"
           >
             {publishing ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
             发布
@@ -745,14 +755,14 @@ export function MainContent({ selectedDate, selectedPostId, onRefresh, searchQue
       </div>
 
       {/* 标签筛选行 */}
-      <div className="rounded-sm border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/70 p-3 shadow-sm">
-        <div className="flex items-center gap-2 overflow-x-auto">
+      <div className="rounded-sm sm:rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/70 p-2 sm:p-3 shadow-sm">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 -mb-1">
           <button
             onClick={() => {
               setSelectedTag(null);
               setShowImagesOnly(false);
             }}
-            className={`px-3 py-1.5 rounded-sm text-xs font-medium transition-colors whitespace-nowrap ${
+            className={`px-3 py-2 sm:py-1.5 rounded-sm text-xs sm:text-sm font-medium transition-colors whitespace-nowrap active:scale-95 ${
               selectedTag === null && !showImagesOnly
                 ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900"
                 : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
@@ -765,7 +775,7 @@ export function MainContent({ selectedDate, selectedPostId, onRefresh, searchQue
               setSelectedTag(null);
               setShowImagesOnly(true);
             }}
-            className={`px-3 py-1.5 rounded-sm text-xs font-medium transition-colors whitespace-nowrap ${
+            className={`px-3 py-2 sm:py-1.5 rounded-sm text-xs sm:text-sm font-medium transition-colors whitespace-nowrap active:scale-95 ${
               showImagesOnly && selectedTag === null
                 ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900"
                 : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
@@ -780,7 +790,7 @@ export function MainContent({ selectedDate, selectedPostId, onRefresh, searchQue
                 setSelectedTag(tag);
                 setShowImagesOnly(false);
               }}
-              className={`px-3 py-1.5 rounded-sm text-xs font-medium transition-colors whitespace-nowrap ${
+              className={`px-3 py-2 sm:py-1.5 rounded-sm text-xs sm:text-sm font-medium transition-colors whitespace-nowrap active:scale-95 ${
                 selectedTag === tag && !showImagesOnly
                   ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900"
                   : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
@@ -809,7 +819,7 @@ export function MainContent({ selectedDate, selectedPostId, onRefresh, searchQue
             return (
               <div
                 key={post.id}
-                className="rounded-sm border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/70 p-3 shadow-sm hover:shadow-md transition-shadow relative group"
+                className="rounded-sm sm:rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/70 p-3 sm:p-4 shadow-sm hover:shadow-md transition-shadow relative group"
               >
                 {/* 帖子操作菜单（修改时间 / 编辑图片 / 删除） */}
                 <div className="absolute top-2 right-2 z-20">
@@ -818,21 +828,21 @@ export function MainContent({ selectedDate, selectedPostId, onRefresh, searchQue
                       onClick={() =>
                         setMenuPostId((prev) => (prev === post.id ? null : post.id))
                       }
-                      className="p-1.5 rounded-sm bg-zinc-100/80 dark:bg-zinc-800/80 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-zinc-50 transition-colors opacity-0 group-hover:opacity-100"
+                      className="p-2 sm:p-1.5 rounded-sm bg-zinc-100/80 dark:bg-zinc-800/80 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-zinc-50 transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100 active:scale-95"
                       title="更多操作"
                     >
-                      <MoreHorizontal size={14} />
+                      <MoreHorizontal size={16} className="sm:w-[14px] sm:h-[14px]" />
                     </button>
                     {menuPostId === post.id && (
-                      <div className="absolute right-0 top-7 w-28 rounded-sm border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm py-1 text-[11px] text-zinc-700 dark:text-zinc-300 z-30">
+                      <div className="absolute right-0 top-9 sm:top-7 w-32 sm:w-28 rounded-sm border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-lg py-1 text-xs sm:text-[11px] text-zinc-700 dark:text-zinc-300 z-30">
                         <button
                           onClick={() => {
                             setMenuPostId(null);
                             handleStartEditTime(post);
                           }}
-                          className="w-full px-2 py-1 flex items-center gap-1 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                          className="w-full px-3 sm:px-2 py-2 sm:py-1 flex items-center gap-2 sm:gap-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 active:bg-zinc-200 dark:active:bg-zinc-700"
                         >
-                          <Clock size={11} />
+                          <Clock size={14} className="sm:w-[11px] sm:h-[11px]" />
                           <span>修改时间</span>
                         </button>
                       <button
@@ -840,9 +850,9 @@ export function MainContent({ selectedDate, selectedPostId, onRefresh, searchQue
                           setMenuPostId(null);
                           handleStartEditPost(post);
                         }}
-                        className="w-full px-2 py-1 flex items-center gap-1 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                        className="w-full px-3 sm:px-2 py-2 sm:py-1 flex items-center gap-2 sm:gap-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 active:bg-zinc-200 dark:active:bg-zinc-700"
                       >
-                        <ImageIcon size={11} />
+                        <ImageIcon size={14} className="sm:w-[11px] sm:h-[11px]" />
                         <span>编辑帖子</span>
                       </button>
                         <button
@@ -850,9 +860,9 @@ export function MainContent({ selectedDate, selectedPostId, onRefresh, searchQue
                             setMenuPostId(null);
                             handleDeletePost(post.id);
                           }}
-                          className="w-full px-2 py-1 flex items-center gap-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40"
+                          className="w-full px-3 sm:px-2 py-2 sm:py-1 flex items-center gap-2 sm:gap-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 active:bg-red-100 dark:active:bg-red-950/60"
                         >
-                          <Trash2 size={11} />
+                          <Trash2 size={14} className="sm:w-[11px] sm:h-[11px]" />
                           <span>删除</span>
                         </button>
                       </div>
@@ -890,7 +900,7 @@ export function MainContent({ selectedDate, selectedPostId, onRefresh, searchQue
                     </span>
                   </div>
                 )}
-                <div className="text-sm text-zinc-900 dark:text-zinc-50 whitespace-pre-wrap leading-relaxed pr-8">
+                <div className="text-sm sm:text-base text-zinc-900 dark:text-zinc-50 whitespace-pre-wrap leading-relaxed pr-8 sm:pr-12">
                   {post.content}
                 </div>
                 {post.images && Array.isArray(post.images) && post.images.length > 0 && (
@@ -900,7 +910,7 @@ export function MainContent({ selectedDate, selectedPostId, onRefresh, searchQue
                         key={index}
                         src={url}
                         alt={`Post image ${index + 1}`}
-                        className="max-w-full h-auto max-h-32 rounded-sm border border-zinc-200 dark:border-zinc-800 cursor-pointer"
+                        className="max-w-full h-auto max-h-48 sm:max-h-32 rounded-sm border border-zinc-200 dark:border-zinc-800 cursor-pointer active:opacity-80"
                         onClick={() => window.open(url, '_blank')}
                       />
                     ))}
@@ -1047,7 +1057,7 @@ export function MainContent({ selectedDate, selectedPostId, onRefresh, searchQue
                   }
                 }}
                 disabled={currentPage === 1}
-                className="px-3 py-1.5 rounded-sm border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 rounded-sm border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
               >
                 上一页
               </button>
@@ -1079,7 +1089,7 @@ export function MainContent({ selectedDate, selectedPostId, onRefresh, searchQue
                       onClick={() => {
                         setCurrentPage(pageNum);
                       }}
-                      className={`px-3 py-1.5 rounded-sm border text-sm transition-colors ${
+                      className={`px-3 sm:px-4 py-2 rounded-sm border text-sm transition-colors active:scale-95 ${
                         currentPage === pageNum
                           ? 'border-zinc-900 dark:border-white bg-zinc-900 dark:bg-white text-white dark:text-zinc-900'
                           : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
@@ -1099,7 +1109,7 @@ export function MainContent({ selectedDate, selectedPostId, onRefresh, searchQue
                   }
                 }}
                 disabled={currentPage === totalPages}
-                className="px-3 py-1.5 rounded-sm border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 rounded-sm border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
               >
                 下一页
               </button>

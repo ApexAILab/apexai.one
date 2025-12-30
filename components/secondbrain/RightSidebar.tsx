@@ -33,14 +33,14 @@ export function RightSidebar({ onSearchChange }: RightSidebarProps) {
   };
 
   return (
-    <div className="w-80 flex flex-col gap-2 overflow-hidden">
+    <div className="w-full lg:w-80 flex flex-col gap-2 overflow-hidden">
       {/* 设置按钮 */}
       <button
         onClick={() => setShowSettings(true)}
-        className="h-11 rounded-sm border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/70 px-3 shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-50"
+        className="h-12 sm:h-11 rounded-sm border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/70 px-3 shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-50 active:scale-95"
       >
-        <Settings size={16} />
-        设置
+        <Settings size={18} className="sm:w-4 sm:h-4" />
+        <span>设置</span>
       </button>
 
       {/* 设置弹窗 */}
@@ -48,8 +48,8 @@ export function RightSidebar({ onSearchChange }: RightSidebarProps) {
 
       {/* 搜索栏 */}
       <div className="rounded-sm border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/70 p-3 shadow-sm">
-        <div className="relative h-11 flex items-center">
-          <Search size={16} className="absolute left-2 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-zinc-500" />
+        <div className="relative h-12 sm:h-11 flex items-center">
+          <Search size={18} className="absolute left-3 sm:left-2 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-zinc-500 sm:w-4 sm:h-4" />
           <input
             type="text"
             value={searchQuery}
@@ -59,7 +59,7 @@ export function RightSidebar({ onSearchChange }: RightSidebarProps) {
               onSearchChange?.(newQuery);
             }}
             placeholder="搜索帖子..."
-            className="w-full h-full pl-8 pr-3 bg-transparent border-none outline-none text-sm text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+            className="w-full h-full pl-10 sm:pl-8 pr-3 bg-transparent border-none outline-none text-base sm:text-sm text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
           />
         </div>
       </div>
@@ -107,14 +107,14 @@ export function RightSidebar({ onSearchChange }: RightSidebarProps) {
                 }
               }}
               placeholder="输入消息..."
-              className="flex-1 bg-transparent border-none outline-none text-xs text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+              className="flex-1 bg-transparent border-none outline-none text-sm sm:text-xs text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
             />
             <button
               onClick={handleSendMessage}
               disabled={!inputMessage.trim()}
-              className="p-1.5 rounded-sm bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="p-2 sm:p-1.5 rounded-sm bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
             >
-              <Send size={14} />
+              <Send size={16} className="sm:w-[14px] sm:h-[14px]" />
             </button>
           </div>
         </div>

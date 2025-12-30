@@ -33,3 +33,28 @@
 .dark *::-webkit-scrollbar-thumb:hover {
   background-color: rgba(212, 212, 216, 0.5);
 }
+
+/* PWA 全屏模式支持 - iPhone X 等设备的 safe area */
+@supports (padding: max(0px)) {
+  body {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+  
+  /* 固定定位的元素也需要考虑 safe area */
+  .fixed {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+  
+  /* 底部固定元素 */
+  .fixed.bottom-0,
+  .fixed.bottom-4 {
+    padding-bottom: max(env(safe-area-inset-bottom), 1rem);
+  }
+  
+  /* 顶部固定元素（如导航栏） */
+  .fixed.top-0 {
+    padding-top: max(env(safe-area-inset-top), 0px);
+  }
+}

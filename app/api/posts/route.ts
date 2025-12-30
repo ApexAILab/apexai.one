@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { config } from 'dotenv'
 import { resolve } from 'path'
+import { getCurrentUser } from '@/lib/auth'
 
 export const runtime = 'nodejs'
 
@@ -50,17 +51,36 @@ async function getPrisma() {
 /**
  * GET /api/posts
  * 获取帖子列表（可按日期分页）
+ * 注意：只返回当前登录用户的帖子（数据隔离）
  */
 export async function GET(request: Request) {
   try {
+    // 验证用户身份
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: '未登录' },
+        { status: 401 }
+      )
+    }
+
     const prisma = await getPrisma()
     const { searchParams } = new URL(request.url)
     const date = searchParams.get('date') // 可选：按日期筛选
     const search = searchParams.get('search') // 可选：搜索关键词
-    const limit = parseInt(searchParams.get('limit') || '50')
+    let limit = parseInt(searchParams.get('limit') || '50')
     const offset = parseInt(searchParams.get('offset') || '0')
+    
+    // 限制最大查询数量，防止超时和内存问题
+    const MAX_LIMIT = 5000
+    if (limit > MAX_LIMIT) {
+      limit = MAX_LIMIT
+    }
 
-    const where: any = {}
+    // 只查询当前用户的帖子（数据隔离）
+    const where: any = {
+      userId: user.id, // 关键：只查询当前用户的帖子
+    }
     if (date) {
       const startDate = new Date(date)
       startDate.setHours(0, 0, 0, 0)
@@ -79,8 +99,12 @@ export async function GET(request: Request) {
 
     if (search && search.trim()) {
       // 搜索模式：获取所有帖子，然后在服务端进行筛选
+      // 限制最大查询数量，防止超时
       const searchTerm = search.trim().toLowerCase()
-      const searchWhere: any = {}
+      // 搜索模式：只查询当前用户的帖子
+      const searchWhere: any = {
+        userId: user.id, // 关键：只查询当前用户的帖子
+      }
       if (date) {
         const startDate = new Date(date)
         startDate.setHours(0, 0, 0, 0)
@@ -94,6 +118,7 @@ export async function GET(request: Request) {
       const allPosts = await prisma.post.findMany({
         where: searchWhere,
         orderBy: { createdAt: 'desc' },
+        take: MAX_LIMIT, // 限制最大查询数量
         select: {
           id: true,
           title: true,
@@ -152,9 +177,19 @@ export async function GET(request: Request) {
 /**
  * POST /api/posts
  * 创建新帖子
+ * 注意：帖子会自动关联到当前登录用户
  */
 export async function POST(request: Request) {
   try {
+    // 验证用户身份
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: '未登录' },
+        { status: 401 }
+      )
+    }
+
     const prisma = await getPrisma()
     const body = await request.json()
     
@@ -173,6 +208,7 @@ export async function POST(request: Request) {
       : []
 
     const postData: any = {
+      userId: user.id, // 关键：关联到当前用户
       content: content.trim(),
       title: title?.trim() || null,
       type: type || 'THOUGHT',
@@ -218,9 +254,19 @@ export async function POST(request: Request) {
 /**
  * PATCH /api/posts
  * 更新帖子（当前支持：内容、标签、发布时间、图片）
+ * 注意：只能更新当前用户自己的帖子
  */
 export async function PATCH(request: Request) {
   try {
+    // 验证用户身份
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: '未登录' },
+        { status: 401 }
+      )
+    }
+
     const prisma = await getPrisma()
     const body = await request.json()
     const { id, content, tags, createdAt, images } = body as {
@@ -235,6 +281,26 @@ export async function PATCH(request: Request) {
       return NextResponse.json(
         { success: false, error: '帖子 ID 不能为空' },
         { status: 400 }
+      )
+    }
+
+    // 验证帖子是否属于当前用户
+    const existingPost = await prisma.post.findUnique({
+      where: { id },
+      select: { userId: true },
+    })
+
+    if (!existingPost) {
+      return NextResponse.json(
+        { success: false, error: '帖子不存在' },
+        { status: 404 }
+      )
+    }
+
+    if (existingPost.userId !== user.id) {
+      return NextResponse.json(
+        { success: false, error: '无权访问此帖子' },
+        { status: 403 }
       )
     }
 
@@ -311,9 +377,19 @@ export async function PATCH(request: Request) {
 /**
  * DELETE /api/posts
  * 删除帖子
+ * 注意：只能删除当前用户自己的帖子
  */
 export async function DELETE(request: Request) {
   try {
+    // 验证用户身份
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: '未登录' },
+        { status: 401 }
+      )
+    }
+
     const prisma = await getPrisma()
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
@@ -322,6 +398,26 @@ export async function DELETE(request: Request) {
       return NextResponse.json(
         { success: false, error: '帖子 ID 不能为空' },
         { status: 400 }
+      )
+    }
+
+    // 验证帖子是否属于当前用户
+    const existingPost = await prisma.post.findUnique({
+      where: { id },
+      select: { userId: true },
+    })
+
+    if (!existingPost) {
+      return NextResponse.json(
+        { success: false, error: '帖子不存在' },
+        { status: 404 }
+      )
+    }
+
+    if (existingPost.userId !== user.id) {
+      return NextResponse.json(
+        { success: false, error: '无权删除此帖子' },
+        { status: 403 }
       )
     }
 

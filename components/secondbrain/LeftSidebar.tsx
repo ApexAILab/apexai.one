@@ -114,7 +114,7 @@ export function LeftSidebar({
   const weekDays = ["一", "二", "三", "四", "五", "六", "日"];
 
   return (
-    <div className="w-80 flex flex-col gap-2 overflow-hidden">
+    <div className="w-full lg:w-80 flex flex-col gap-2 overflow-hidden">
       {/* 热力图区域 - 精致小巧版本 */}
       <div className="rounded-sm border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/70 p-2 shadow-sm">
         <div className="mb-1.5">
@@ -142,7 +142,7 @@ export function LeftSidebar({
               <button
                 key={idx}
                 onClick={() => onSelectDate(item.date!)}
-                className={`h-2.5 rounded-[2px] transition-all hover:ring-1 hover:ring-zinc-900 dark:hover:ring-zinc-50 ${
+                className={`h-3 sm:h-2.5 rounded-[2px] transition-all hover:ring-1 hover:ring-zinc-900 dark:hover:ring-zinc-50 active:scale-110 ${
                   item.hasPost
                     ? "bg-zinc-900 dark:bg-zinc-50"
                     : "bg-zinc-100 dark:bg-zinc-900"
@@ -180,7 +180,7 @@ export function LeftSidebar({
                 <button
                   key={post.id}
                   onClick={() => onSelectPost(post.id)}
-                  className={`w-full text-left px-3 py-2 rounded-sm text-xs transition-all ${
+                  className={`w-full text-left px-3 py-2.5 sm:py-2 rounded-sm text-xs sm:text-sm transition-all active:scale-[0.98] ${
                     isSelected
                       ? "bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900"
                       : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400"

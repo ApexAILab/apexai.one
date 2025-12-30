@@ -5,7 +5,7 @@ import { ReactNode } from "react";
 
 /**
  * 全局 Provider 组件
- * 提供主题切换功能（黑白模式）
+ * 提供主题切换功能
  */
 export function Providers({ children }: { children: ReactNode }) {
   return (

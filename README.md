@@ -5,11 +5,15 @@
 ## ✨ 功能特性
 
 ### 核心功能
+- **用户认证**：基于用户名/密码的凭据登录（Credentials Auth），密码使用 bcrypt 加密存储
+- **数据隔离**：不同用户的数据完全隔离，登录后只能看到自己的 SecondBrain 帖子数据
+- **路由保护**：SecondBrain 页面需要登录才能访问
 - **Nexus 接口集成**：完整的任务创建、管理和监控系统
 - **单任务处理**：支持动态表单配置，根据模型模板自动生成输入字段
 - **批量作业**：高效的批量任务处理，支持 CSV 导入/导出
 - **任务管理**：实时任务状态追踪、日志查看、结果预览
 - **文件上传**：支持图片上传（file-url 和 file-base64 两种模式）
+- **SecondBrain**：个人知识管理系统，支持帖子创建、编辑、标签、搜索等功能
 
 ### 开发工具
 - **调试模式**：可切换的调试模式，显示详细日志信息
@@ -21,12 +25,14 @@
 - **Bento UI**：现代化的卡片式布局
 - **深色模式**：完整的深色/浅色主题支持
 - **响应式设计**：完美适配桌面和移动设备
+- **PWA 支持**：支持添加到主屏幕，全屏运行，离线缓存
 
 ## 🚀 快速开始
 
 ### 环境要求
 - Node.js 18+ 
 - npm / yarn / pnpm
+- PostgreSQL 数据库
 
 ### 安装依赖
 
@@ -37,6 +43,36 @@ yarn install
 # 或
 pnpm install
 ```
+
+### 环境变量配置
+
+在项目根目录创建 `.env` 文件，添加以下环境变量：
+
+```env
+# 数据库连接
+DATABASE_URL="postgresql://user:password@localhost:5432/apexai"
+DIRECT_URL="postgresql://user:password@localhost:5432/apexai"
+
+# 认证配置
+AUTH_SECRET="your-secret-key-here"  # 运行 `openssl rand -base64 32` 生成，用于 JWT Token 签名
+```
+
+**重要提示：**
+- `AUTH_SECRET` 是必需的，用于 JWT Token 的签名和验证。可以使用以下命令生成：
+  ```bash
+  openssl rand -base64 32
+  ```
+- 生产环境必须设置一个强随机的 `AUTH_SECRET`
+
+### 数据库迁移
+
+配置好环境变量后，运行数据库迁移：
+
+```bash
+npx prisma migrate dev
+```
+
+这将创建用户认证所需的表（User）和 SecondBrain 相关的表（Post、Conversation）。
 
 ### 运行开发服务器
 
@@ -92,6 +128,9 @@ ApexAI/
 - **框架**: Next.js 16 (App Router)
 - **语言**: TypeScript
 - **样式**: Tailwind CSS v4
+- **认证**: 自定义 Credentials Auth（JWT + bcrypt）
+- **数据库**: PostgreSQL + Prisma ORM
+- **邮件服务**: Resend
 - **状态管理**: Zustand (with persist middleware)
 - **动画**: Framer Motion
 - **图标**: Lucide React
@@ -152,7 +191,48 @@ Nexus 是一个统一的 AI 任务处理接口，支持多种 AI 模型和任务
 - 遵循模块化原则，关注点分离
 - UI 组件不直接处理网络请求
 
+## 📱 PWA 功能
+
+ApexAI 已升级为 Progressive Web App (PWA)，支持：
+
+### 功能特性
+- ✅ **添加到主屏幕**：在 iPhone、Android 和桌面浏览器上都可以添加到主屏幕
+- ✅ **全屏运行**：添加到主屏幕后可以像原生 App 一样全屏运行
+- ✅ **离线缓存**：Service Worker 自动缓存静态资源，提升加载速度
+- ✅ **智能缓存策略**：API 请求使用网络优先，静态资源使用缓存优先
+- ✅ **自动更新**：Service Worker 自动检测并应用更新
+
+### 使用方法
+
+#### iPhone/iPad (Safari)
+1. 打开网站后，点击底部的分享按钮（📤）
+2. 向下滚动，选择"添加到主屏幕"
+3. 点击"添加"完成安装
+4. 从主屏幕打开，享受全屏体验
+
+#### Android (Chrome/Edge)
+1. 打开网站后，浏览器会自动显示"安装"提示
+2. 点击"安装"按钮完成安装
+3. 或者点击浏览器菜单中的"添加到主屏幕"
+
+#### 桌面浏览器 (Chrome/Edge)
+1. 地址栏右侧会显示"安装"图标
+2. 点击图标，选择"安装"
+3. 应用会以独立窗口运行
+
+### 技术实现
+- **Manifest.json**：定义应用名称、图标、启动 URL 等
+- **Service Worker**：实现离线缓存和资源管理
+- **响应式图标**：自动生成 192x192、512x512 和 Apple Touch Icon
+- **Safe Area 支持**：适配 iPhone X 等设备的刘海屏
+
 ## 📝 更新日志
+
+### v0.2.0 (PWA Support)
+- ✅ PWA 支持：添加到主屏幕、全屏运行
+- ✅ Service Worker 离线缓存
+- ✅ 响应式图标生成
+- ✅ iPhone safe area 适配
 
 ### v0.1.0 (Initial Release)
 - ✅ 完整的 Nexus 功能迁移

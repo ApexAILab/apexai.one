@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { config } from 'dotenv'
 import { resolve } from 'path'
+import { getCurrentUser } from '@/lib/auth'
 
 export const runtime = 'nodejs'
 
@@ -30,8 +31,18 @@ async function getPrisma() {
 }
 
 // 获取日历数据（哪些日期有帖子）
+// 注意：只返回当前用户的帖子日期
 export async function GET() {
   try {
+    // 验证用户身份
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: '未登录' },
+        { status: 401 }
+      )
+    }
+
     const prisma = await getPrisma()
     const today = new Date()
     const year = today.getFullYear()
@@ -41,9 +52,10 @@ export async function GET() {
     const firstDay = new Date(year, month, 1)
     const lastDay = new Date(year, month + 1, 0)
     
-    // 查询当月所有有帖子的日期
+    // 查询当月所有有帖子的日期（只查询当前用户的帖子）
     const posts = await prisma.post.findMany({
       where: {
+        userId: user.id, // 关键：只查询当前用户的帖子
         createdAt: {
           gte: firstDay,
           lte: lastDay,

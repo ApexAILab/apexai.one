@@ -4,46 +4,66 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL") 
-  directUrl = env("DIRECT_URL")  
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// 用户认证数据模型（Credentials Auth）
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique // 用户名（唯一）
+  password  String // 加密后的密码
+  name      String? // 可选：显示名称
+  email     String? // 可选：邮箱（不用于登录）
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 关联：用户的所有帖子
+  posts Post[]
+
+  @@map("users")
 }
 
 // SecondBrain 数据模型
 
 model Post {
-  id          String   @id @default(cuid())
-  title       String?
-  content     String   @db.Text
-  type        PostType @default(THOUGHT)
-  tags        String[]
-  images      String[] // 图片 URL 数组
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  id        String   @id @default(cuid())
+  userId    String // 关联到用户（实现数据隔离）
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String?
+  content   String   @db.Text
+  type      PostType @default(THOUGHT)
+  tags      String[]
+  images    String[] // 图片 URL 数组
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // AI 相关字段
-  embeddings  Float[]
-  summary     String?  @db.Text
-  aiInsights  Json?
-  
+  embeddings Float[]
+  summary    String? @db.Text
+  aiInsights Json?
+
   // 关联对话
   conversations Conversation[]
-  
+
+  @@index([userId])
   @@index([createdAt])
   @@index([type])
   @@map("posts")
 }
 
 model Conversation {
-  id          String   @id @default(cuid())
-  postId      String?
-  post        Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
-  
-  userMessage String   @db.Text
-  aiResponse  String   @db.Text
+  id     String  @id @default(cuid())
+  postId String?
+  post   Post?   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  userMessage String @db.Text
+  aiResponse  String @db.Text
   context     Json?
-  
-  createdAt   DateTime @default(now())
-  
+
+  createdAt DateTime @default(now())
+
   @@index([postId])
   @@index([createdAt])
   @@map("conversations")

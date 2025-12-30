@@ -34,11 +34,11 @@ async function getPrisma() {
 }
 
 /**
- * GET /api/posts/export
- * 导出帖子数据（支持时间范围筛选）
- * 注意：只导出当前用户的帖子
+ * GET /api/posts/tags
+ * 获取所有唯一的标签（只查询 tags 字段，不获取完整内容）
+ * 注意：只返回当前用户的帖子标签
  */
-export async function GET(request: Request) {
+export async function GET() {
   try {
     // 验证用户身份
     const user = await getCurrentUser()
@@ -50,51 +50,43 @@ export async function GET(request: Request) {
     }
 
     const prisma = await getPrisma()
-    const { searchParams } = new URL(request.url)
-    const startDate = searchParams.get('startDate') // 可选：开始日期 (ISO string)
-    const endDate = searchParams.get('endDate') // 可选：结束日期 (ISO string)
-
-    // 只查询当前用户的帖子（数据隔离）
-    const where: any = {
-      userId: user.id, // 关键：只查询当前用户的帖子
-    }
     
-    // 如果提供了时间范围，则筛选
-    if (startDate || endDate) {
-      where.createdAt = {}
-      if (startDate) {
-        const start = new Date(startDate)
-        start.setHours(0, 0, 0, 0)
-        where.createdAt.gte = start
-      }
-      if (endDate) {
-        const end = new Date(endDate)
-        end.setHours(23, 59, 59, 999)
-        where.createdAt.lte = end
-      }
-    }
-
+    // 只查询 tags 字段，不获取完整内容，提高性能（只查询当前用户的帖子）
     const posts = await prisma.post.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
+      where: {
+        userId: user.id, // 关键：只查询当前用户的帖子
+      },
       select: {
-        id: true,
-        content: true,
         tags: true,
-        images: true,
-        createdAt: true,
       },
     })
 
+    // 提取所有唯一的标签
+    const tagSet = new Set<string>()
+    posts.forEach((post) => {
+      if (post.tags && Array.isArray(post.tags) && post.tags.length > 0) {
+        post.tags.forEach((tag: any) => {
+          const tagStr = String(tag).trim()
+          if (tagStr) {
+            tagSet.add(tagStr)
+          }
+        })
+      }
+    })
+
+    const allTags = Array.from(tagSet).sort()
+
     return NextResponse.json({
       success: true,
-      data: posts,
-      count: posts.length,
+      data: allTags,
     })
   } catch (error) {
-    console.error('Export posts error:', error)
+    console.error('Get tags error:', error)
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
+      { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      },
       { status: 500 }
     )
   }
