@@ -60,7 +60,7 @@ export async function GET() {
       name: m.name,
       createPath: m.createPath,
       queryPath: m.queryPath,
-      paths: m.paths as Model["paths"],
+      paths: m.paths as unknown as Model["paths"],
       bodyTemplate: m.bodyTemplate,
     }));
 
@@ -187,7 +187,7 @@ export async function POST(request: Request) {
           name: m.name,
           createPath: m.createPath,
           queryPath: m.queryPath,
-          paths: m.paths as Model["paths"],
+          paths: m.paths as unknown as Model["paths"],
           bodyTemplate: m.bodyTemplate,
         })),
       };
