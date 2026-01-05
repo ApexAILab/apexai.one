@@ -158,7 +158,7 @@ export async function POST(request: Request) {
               name: model.name,
               createPath: model.createPath,
               queryPath: model.queryPath,
-              paths: model.paths,
+              paths: model.paths as unknown as any,
               bodyTemplate: model.bodyTemplate,
             },
             select: {
