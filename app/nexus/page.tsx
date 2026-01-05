@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNexusStore } from "@/lib/store";
 import { TaskConfigurator } from "@/components/nexus/TaskConfigurator";
@@ -25,7 +25,22 @@ export default function NexusPage() {
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [resetKey, setResetKey] = useState<number>(0); // 用于触发动画和组件重绘
-  const { models, tasks } = useNexusStore();
+  const { models, tasks, loadConfigFromDB, isConfigLoaded } = useNexusStore();
+  const [isLoading, setIsLoading] = useState(false);
+
+  // 页面加载时从数据库加载配置
+  useEffect(() => {
+    if (!isConfigLoaded && !isLoading) {
+      setIsLoading(true);
+      loadConfigFromDB()
+        .catch((error) => {
+          console.error("[Nexus] 加载配置失败:", error);
+        })
+        .finally(() => {
+          setIsLoading(false);
+        });
+    }
+  }, [isConfigLoaded]); // 移除 loadConfigFromDB 依赖，避免无限循环
 
   // 获取当前选中的任务
   const currentTask = currentTaskId

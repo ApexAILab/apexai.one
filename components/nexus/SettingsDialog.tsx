@@ -1,14 +1,56 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNexusStore } from "@/lib/store";
 import type { Credential, Model } from "@/types/nexus";
 import { X, Trash2, Plus } from "lucide-react";
 
 /**
+ * 深比较两个对象是否相等
+ */
+function deepEqual(obj1: any, obj2: any): boolean {
+  if (obj1 === obj2) return true;
+  if (obj1 == null || obj2 == null) return false;
+  if (typeof obj1 !== "object" || typeof obj2 !== "object") return false;
+
+  const keys1 = Object.keys(obj1);
+  const keys2 = Object.keys(obj2);
+
+  if (keys1.length !== keys2.length) return false;
+
+  for (const key of keys1) {
+    if (!keys2.includes(key)) return false;
+    if (!deepEqual(obj1[key], obj2[key])) return false;
+  }
+
+  return true;
+}
+
+/**
+ * 比较两个配置数组是否相等
+ */
+function compareConfigs(
+  config1: Credential[] | Model[],
+  config2: Credential[] | Model[]
+): boolean {
+  if (config1.length !== config2.length) return false;
+
+  // 按 ID 排序后比较
+  const sorted1 = [...config1].sort((a, b) => a.id.localeCompare(b.id));
+  const sorted2 = [...config2].sort((a, b) => a.id.localeCompare(b.id));
+
+  for (let i = 0; i < sorted1.length; i++) {
+    if (!deepEqual(sorted1[i], sorted2[i])) return false;
+  }
+
+  return true;
+}
+
+/**
  * 设置弹窗组件
  * 管理凭证和模型配置
  * Bento/Apple 设计风格
+ * 在关闭时检测数据变化并保存到数据库
  */
 export function SettingsDialog({
   open,
@@ -26,10 +68,52 @@ export function SettingsDialog({
     addModel,
     updateModel,
     deleteModel,
+    saveConfigToDB,
   } = useNexusStore();
 
   const [settingTab, setSettingTab] = useState<"creds" | "models">("creds");
   const [showDocs, setShowDocs] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // 记录打开时的初始状态
+  const initialCredentialsRef = useRef<Credential[]>([]);
+  const initialModelsRef = useRef<Model[]>([]);
+
+  // 当弹窗打开时，记录初始状态
+  useEffect(() => {
+    if (open) {
+      // 深拷贝初始状态
+      initialCredentialsRef.current = JSON.parse(JSON.stringify(credentials));
+      initialModelsRef.current = JSON.parse(JSON.stringify(models));
+    }
+  }, [open]); // 只在 open 变化时执行
+
+  // 处理关闭弹窗
+  const handleClose = async () => {
+    // 检查数据是否有变化
+    const credentialsChanged = !compareConfigs(
+      credentials,
+      initialCredentialsRef.current
+    );
+    const modelsChanged = !compareConfigs(models, initialModelsRef.current);
+
+    if (credentialsChanged || modelsChanged) {
+      // 有变化，保存到数据库
+      setIsSaving(true);
+      try {
+        await saveConfigToDB();
+      } catch (error) {
+        console.error("[Settings] 保存配置失败:", error);
+        // 即使保存失败也关闭弹窗，但可以提示用户
+        alert("保存配置失败，请稍后重试");
+      } finally {
+        setIsSaving(false);
+      }
+    }
+
+    // 关闭弹窗
+    onClose();
+  };
 
   // 生成唯一 ID（使用时间戳 + 随机数，避免 hydration 问题）
   const generateId = () => {
@@ -120,7 +204,7 @@ export function SettingsDialog({
       {/* 背景遮罩 - 黑色半透明 + 高强度毛玻璃 */}
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-md"
-        onClick={onClose}
+        onClick={handleClose}
       />
 
       {/* 弹窗主体 - 居中，白色背景，深色阴影，圆角，极细边框 */}
@@ -185,10 +269,15 @@ export function SettingsDialog({
               重置
             </button>
             <button
-              onClick={onClose}
-              className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 flex items-center justify-center transition"
+              onClick={handleClose}
+              disabled={isSaving}
+              className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 flex items-center justify-center transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <X size={16} />
+              {isSaving ? (
+                <div className="w-4 h-4 border-2 border-zinc-500 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <X size={16} />
+              )}
             </button>
           </div>
         </div>

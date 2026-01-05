@@ -8,8 +8,8 @@ import { verifyToken } from "@/lib/auth";
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 保护 secondbrain 路由
-  if (pathname.startsWith("/secondbrain")) {
+  // 保护 secondbrain 和 nexus 路由
+  if (pathname.startsWith("/secondbrain") || pathname.startsWith("/nexus")) {
     // 从请求中获取 Cookie（在 Edge Runtime 中需要手动解析）
     const cookieHeader = request.headers.get("cookie");
     const token = cookieHeader

@@ -53,13 +53,13 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 跳过 Chrome 扩展和外部资源
-  if (
-    url.protocol === 'chrome-extension:' ||
-    url.hostname === 'localhost' ||
-    url.hostname.includes('vercel.app') ||
-    url.hostname.includes('github.com')
-  ) {
+  // 跳过 Chrome 扩展
+  if (url.protocol === 'chrome-extension:') {
+    return;
+  }
+
+  // 跳过 Service Worker 自身
+  if (url.pathname === '/sw.js') {
     return;
   }
 

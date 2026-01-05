@@ -7,8 +7,9 @@
 ### 核心功能
 - **用户认证**：基于用户名/密码的凭据登录（Credentials Auth），密码使用 bcrypt 加密存储
 - **数据隔离**：不同用户的数据完全隔离，登录后只能看到自己的 SecondBrain 帖子数据
-- **路由保护**：SecondBrain 页面需要登录才能访问
+- **路由保护**：SecondBrain 和 Nexus 页面需要登录才能访问
 - **Nexus 接口集成**：完整的任务创建、管理和监控系统
+- **用户配置隔离**：每个用户的 Nexus 配置（凭证和模型）独立存储，数据完全隔离
 - **单任务处理**：支持动态表单配置，根据模型模板自动生成输入字段
 - **批量作业**：高效的批量任务处理，支持 CSV 导入/导出
 - **任务管理**：实时任务状态追踪、日志查看、结果预览
@@ -72,7 +73,7 @@ AUTH_SECRET="your-secret-key-here"  # 运行 `openssl rand -base64 32` 生成，
 npx prisma migrate dev
 ```
 
-这将创建用户认证所需的表（User）和 SecondBrain 相关的表（Post、Conversation）。
+这将创建用户认证所需的表（User）、SecondBrain 相关的表（Post、Conversation）以及 Nexus 配置相关的表（NexusCredential、NexusModel）。
 
 ### 运行开发服务器
 
@@ -227,6 +228,18 @@ ApexAI 已升级为 Progressive Web App (PWA)，支持：
 - **Safe Area 支持**：适配 iPhone X 等设备的刘海屏
 
 ## 📝 更新日志
+
+### v0.2.0 (PWA Support)
+- ✅ PWA 支持：添加到主屏幕、全屏运行
+- ✅ Service Worker 离线缓存
+- ✅ 响应式图标生成
+- ✅ iPhone safe area 适配
+
+### v0.3.0 (Nexus User Isolation)
+- ✅ Nexus 功能添加登录保护
+- ✅ Nexus 配置数据保存到数据库，与用户 ID 绑定
+- ✅ 每个用户独立的凭证和模型配置
+- ✅ 配置自动同步到数据库
 
 ### v0.2.0 (PWA Support)
 - ✅ PWA 支持：添加到主屏幕、全屏运行
