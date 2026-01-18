@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useNexusStore } from "@/lib/store";
 import type { Task } from "@/types/nexus";
-import { StopCircle } from "lucide-react";
 
 /**
  * 任务查看器组件
@@ -14,34 +13,42 @@ export function TaskViewer({ task }: { task: Task }) {
   const [globalDebug, setGlobalDebug] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [formattedTime, setFormattedTime] = useState("");
+  const [duration, setDuration] = useState("00:00.00");
+
+  // 格式化运行时长：00:00.00（分:秒.毫秒）
+  const formatDuration = (startTime: number, status: Task["status"]) => {
+    const now = Date.now();
+    const elapsed = now - startTime;
+    const totalSeconds = Math.floor(elapsed / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    const milliseconds = Math.floor((elapsed % 1000) / 10); // 只取前两位毫秒
+    
+    return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(milliseconds).padStart(2, "0")}`;
+  };
 
   // 客户端挂载后格式化时间，避免 hydration 错误
   useEffect(() => {
     setMounted(true);
     setFormattedTime(new Date(task.startTime).toLocaleTimeString());
-  }, [task.startTime]);
+    setDuration(formatDuration(task.startTime, task.status));
+  }, [task.startTime, task.status]);
+
+  // 对于进行中的任务，实时更新运行时长
+  useEffect(() => {
+    if (task.status === "polling") {
+      const interval = setInterval(() => {
+        setDuration(formatDuration(task.startTime, task.status));
+      }, 100); // 每100ms更新一次，以显示毫秒变化
+      
+      return () => clearInterval(interval);
+    }
+  }, [task.startTime, task.status]);
 
   // 判断是否为视频
   const isVideo = (url: string | null) => {
     if (!url) return false;
     return url.includes(".mp4") || url.includes(".mov");
-  };
-
-  // 处理终止任务
-  const handleStopTask = () => {
-    if (task.status === "polling" && confirm("确认终止此任务？")) {
-      updateTask(task.id, {
-        status: "stopped",
-        logs: [
-          {
-            time: new Date().toLocaleTimeString(),
-            msg: "手动停止",
-            type: "warning",
-          },
-          ...task.logs,
-        ],
-      });
-    }
   };
 
   // 复制到剪贴板
@@ -119,23 +126,18 @@ export function TaskViewer({ task }: { task: Task }) {
                 ID: {task.id}
               </p>
             </div>
-            <div className="flex items-center gap-4">
-              {task.status === "polling" && (
-                <button
-                  onClick={handleStopTask}
-                  className="flex items-center gap-1.5 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 px-3 py-1.5 rounded-lg text-xs font-bold transition border border-red-200 dark:border-red-800"
-                >
-                  <StopCircle size={16} />
-                  <span>终止</span>
-                </button>
-              )}
-              <div className="text-right">
-                <div className="text-xs text-zinc-400 dark:text-zinc-500">
-                  时间
-                </div>
-                <div className="font-bold text-zinc-700 dark:text-zinc-300">
+            <div className="text-right space-y-2">
+              <div className="text-xs text-zinc-400 dark:text-zinc-500">
+                <span>提交时间 </span>
+                <span className="font-bold text-zinc-700 dark:text-zinc-300 font-mono">
                   {mounted ? formattedTime : "--:--:--"}
-                </div>
+                </span>
+              </div>
+              <div className="text-xs text-zinc-400 dark:text-zinc-500">
+                <span>运行时长 </span>
+                <span className="font-bold text-zinc-700 dark:text-zinc-300 font-mono">
+                  {mounted ? duration : "00:00.00"}
+                </span>
               </div>
             </div>
           </div>

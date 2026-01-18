@@ -21,18 +21,48 @@ export function TaskList({
   const { deleteTask, clearTasks } = useNexusStore();
   const [mounted, setMounted] = useState(false);
   const [formattedTimes, setFormattedTimes] = useState<Record<string, string>>({});
+  const [durations, setDurations] = useState<Record<string, string>>({});
+
+  // 格式化运行时长：00:00.00（分:秒.毫秒）
+  const formatDuration = (startTime: number, status: Task["status"]) => {
+    const now = Date.now();
+    const elapsed = now - startTime;
+    const totalSeconds = Math.floor(elapsed / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    const milliseconds = Math.floor((elapsed % 1000) / 10); // 只取前两位毫秒
+    
+    return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(milliseconds).padStart(2, "0")}`;
+  };
 
   // 客户端挂载后格式化时间，避免 hydration 错误
   useEffect(() => {
     setMounted(true);
     const times: Record<string, string> = {};
+    const durationsMap: Record<string, string> = {};
     tasks.forEach((task) => {
       times[task.id] = new Date(task.startTime).toLocaleTimeString([], {
         hour: "2-digit",
         minute: "2-digit",
       });
+      durationsMap[task.id] = formatDuration(task.startTime, task.status);
     });
     setFormattedTimes(times);
+    setDurations(durationsMap);
+    
+    // 对于进行中的任务，每秒更新运行时长
+    const pollingTasks = tasks.filter(t => t.status === "polling");
+    if (pollingTasks.length > 0) {
+      const interval = setInterval(() => {
+        const newDurations: Record<string, string> = {};
+        pollingTasks.forEach((task) => {
+          newDurations[task.id] = formatDuration(task.startTime, task.status);
+        });
+        setDurations(prev => ({ ...prev, ...newDurations }));
+      }, 100); // 每100ms更新一次，以显示毫秒变化
+      
+      return () => clearInterval(interval);
+    }
   }, [tasks]);
 
   // 格式化时间
@@ -142,9 +172,20 @@ export function TaskList({
             {task.summary || "无标题"}
           </div>
 
-          {/* 状态 */}
-          <div className="flex items-center gap-1.5">
-            {getStatusIcon(task.status)}
+          {/* 状态和运行时长 */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              {getStatusIcon(task.status)}
+              <span
+                className={`text-[10px] ${
+                  currentTaskId === task.id
+                    ? "text-zinc-400"
+                    : "text-zinc-500 dark:text-zinc-400"
+                }`}
+              >
+                {getStatusText(task.status)}
+              </span>
+            </div>
             <span
               className={`text-[10px] ${
                 currentTaskId === task.id
@@ -152,7 +193,7 @@ export function TaskList({
                   : "text-zinc-500 dark:text-zinc-400"
               }`}
             >
-              {getStatusText(task.status)}
+              {durations[task.id] || "00:00.00"}
             </span>
           </div>
 

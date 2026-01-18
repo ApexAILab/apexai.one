@@ -125,6 +125,7 @@ export function useTaskEngine() {
         let val = task.inputs[f.key];
         // 处理未填写的图片：如果是空值，设为 "" (空字符串)
         if (val === undefined || val === null) val = "";
+        
         // 类型转换：数字/整数/布尔
         const t = (f.type || "").toLowerCase();
         if (t === "number" || t === "integer" || t === "int") {
@@ -134,19 +135,50 @@ export function useTaskEngine() {
           if (val === "true" || val === true) val = true;
           else if (val === "false" || val === false) val = false;
         }
+        
         // 处理 textarea 类型的换行符
         if (f.type === "textarea" && val) {
           val = val.replace(/\n/g, "\\n");
         }
+        
         // 替换模板中的占位符
+        // 关键修复：正确处理字符串值的 JSON 转义
+        // 由于模板中占位符通常在引号内（如 "{{字段}}"），我们需要：
+        // 1. 字符串值：转义特殊字符（引号、反斜杠等），但不加外层引号（模板已有）
+        // 2. 数字/布尔值：直接转换为字符串（不带引号）
         const regex = new RegExp(`\\{\\{${f.key}.*?\\}\\}`, "g");
-        bodyStr = bodyStr.replace(regex, val);
+        let replacement: string;
+        
+        if (typeof val === "string") {
+          // 字符串值：使用 JSON.stringify 转义特殊字符，然后去掉外层引号
+          // 因为模板中已经有引号了（如 "{{字段}}" -> "转义后的值"）
+          replacement = JSON.stringify(val).slice(1, -1);
+        } else if (typeof val === "boolean" || typeof val === "number") {
+          // 布尔值或数字：直接转换为字符串（不带引号）
+          // 注意：如果模板中占位符在引号内，这会导致 JSON 无效
+          // 但根据当前模板结构，布尔值和数字通常不在引号内
+          replacement = String(val);
+        } else {
+          // 其他类型（如 null）：转换为字符串
+          replacement = String(val);
+        }
+        
+        bodyStr = bodyStr.replace(regex, replacement);
       });
 
       addLog(task.id, "提交中...", "info");
 
       // 2. 解析 JSON 并清洗
-      let bodyJSON = JSON.parse(bodyStr);
+      let bodyJSON: any;
+      try {
+        bodyJSON = JSON.parse(bodyStr);
+      } catch (parseError) {
+        // JSON 解析失败：记录详细错误信息
+        const errorMsg = parseError instanceof Error ? parseError.message : "未知错误";
+        addLog(task.id, `请求体解析失败: ${errorMsg}`, "error", bodyStr);
+        throw new Error(`请求体解析失败: ${errorMsg}。请检查模板替换逻辑。`);
+      }
+      
       bodyJSON = cleanJSON(bodyJSON);
 
       addLog(task.id, "请求预览", "debug", JSON.stringify(bodyJSON, null, 2));
@@ -178,11 +210,26 @@ export function useTaskEngine() {
         }),
       });
 
-      if (!createResponse.ok) {
-        throw new Error(`HTTP ${createResponse.status}`);
+      const createData = await createResponse.json();
+
+      // 检查响应状态：如果 API 返回错误，解析并记录详细错误信息
+      if (!createResponse.ok || createData.status >= 400) {
+        const errorData = createData.data || {};
+        const errorMessage =
+          errorData.error ||
+          errorData.message ||
+          `HTTP ${createData.status || createResponse.status}`;
+        
+        addLog(
+          task.id,
+          `请求失败: ${errorMessage}`,
+          "error",
+          JSON.stringify(errorData, null, 2)
+        );
+        
+        throw new Error(`API 请求失败: ${errorMessage}`);
       }
 
-      const createData = await createResponse.json();
       const data = createData.data;
 
       addLog(task.id, "响应", "debug", JSON.stringify(data, null, 2));
@@ -250,8 +297,11 @@ export function useTaskEngine() {
 
           const st = getNested(qData, model.paths.status);
           const out = getNested(qData, model.paths.outputUrl);
+          
+          // 提取错误信息（如果存在）
+          const errorMsg = qData.error || qData.message || null;
 
-          addLog(task.id, `状态: ${st}`);
+          addLog(task.id, `状态: ${st}${errorMsg ? ` | ${errorMsg}` : ""}`);
 
           // 检查是否完成
           if (
@@ -273,7 +323,21 @@ export function useTaskEngine() {
             updateTask(task.id, {
               status: "failed",
             });
-            addLog(task.id, "失败", "error", JSON.stringify(qData, null, 2));
+            // 解析并记录详细的错误信息
+            let errorDetail = "任务失败";
+            if (errorMsg) {
+              // 解析错误信息，提取关键部分
+              if (errorMsg.includes("socket hang up")) {
+                errorDetail = "网络连接中断（可能是上传超时或服务器关闭连接）";
+              } else if (errorMsg.includes("timeout")) {
+                errorDetail = "请求超时";
+              } else if (errorMsg.includes("INVALID_ARGUMENT")) {
+                errorDetail = "参数错误：请检查请求参数是否符合 API 要求";
+              } else {
+                errorDetail = `错误: ${errorMsg}`;
+              }
+            }
+            addLog(task.id, errorDetail, "error", JSON.stringify(qData, null, 2));
             return;
           }
 
