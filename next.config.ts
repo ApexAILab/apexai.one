@@ -13,6 +13,12 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // 增加请求体大小限制，支持上传更大的文件（最大 100MB）
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '100mb',
+    },
+  },
   // PWA 配置：确保 Service Worker 和 manifest 文件可以被正确访问
   async headers() {
     return [

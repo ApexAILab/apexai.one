@@ -25,6 +25,7 @@ export default function NexusPage() {
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [resetKey, setResetKey] = useState<number>(0); // 用于触发动画和组件重绘
+  const [initialFormData, setInitialFormData] = useState<Record<string, any> | undefined>(undefined); // 用于重新编辑的初始数据
   const { models, tasks, loadConfigFromDB, isConfigLoaded } = useNexusStore();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -54,6 +55,7 @@ export default function NexusPage() {
   const handleSingleTask = () => {
     setViewMode("single");
     setCurrentTaskId(null); // 清空选中的历史任务
+    setInitialFormData(undefined); // 清空初始表单数据
     setResetKey((prev) => prev + 1); // 触发动画和重绘
     // 如果当前没选模型，自动选中第一个
     if (!selectedModelId && models.length > 0) {
@@ -87,11 +89,25 @@ export default function NexusPage() {
     setShowSettings(true);
   };
 
-  // 处理任务创建完成
-  const handleTaskCreated = (taskId: string) => {
-    setCurrentTaskId(taskId);
-    setViewMode("detail");
+  // 处理重新编辑任务
+  const handleReEdit = (task: Task) => {
+    // 切换到单个任务模式
+    setViewMode("single");
+    // 设置选中的模型
+    setSelectedModelId(task.modelId);
+    // 设置初始表单数据（使用任务保存的 inputs）
+    setInitialFormData(task.inputs);
+    // 清空当前选中的任务
+    setCurrentTaskId(null);
+    // 触发动画和重绘
+    setResetKey((prev) => prev + 1);
   };
+
+  // 处理任务创建完成（已移除自动跳转功能，提交后停留在当前界面）
+  // const handleTaskCreated = (taskId: string) => {
+  //   setCurrentTaskId(taskId);
+  //   setViewMode("detail");
+  // };
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-white dark:bg-zinc-950">
@@ -178,7 +194,9 @@ export default function NexusPage() {
             >
               <TaskConfigurator
                 selectedModelId={selectedModelId}
-                onTaskCreated={handleTaskCreated}
+                initialFormData={initialFormData}
+                onTaskSubmitted={() => setInitialFormData(undefined)} // 提交成功后清空初始数据
+                // 不传递 onTaskCreated，提交后不跳转，停留在当前界面
               />
             </motion.div>
           )}
@@ -203,7 +221,10 @@ export default function NexusPage() {
               transition={{ duration: 0.2 }}
               className="flex-1 flex flex-col min-h-0"
             >
-              <TaskViewer task={currentTask} />
+              <TaskViewer 
+                task={currentTask} 
+                onReEdit={handleReEdit}
+              />
             </motion.div>
           )}
         </AnimatePresence>

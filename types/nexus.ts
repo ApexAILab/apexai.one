@@ -90,6 +90,8 @@ export interface Task {
   modelName: string;
   /** 任务开始时间（时间戳） */
   startTime: number;
+  /** 任务结束时间（时间戳，任务完成/失败/停止时设置） */
+  endTime?: number;
   /** 任务状态 */
   status: TaskStatus;
   /** 任务输入参数（表单数据） */
@@ -100,4 +102,6 @@ export interface Task {
   result: string | null;
   /** 任务摘要（用于列表显示） */
   summary: string;
+  /** 是否自动下载（任务完成后自动下载视频） */
+  autoDownload?: boolean;
 }

@@ -24,9 +24,11 @@ export function TaskList({
   const [durations, setDurations] = useState<Record<string, string>>({});
 
   // 格式化运行时长：00:00.00（分:秒.毫秒）
-  const formatDuration = (startTime: number, status: Task["status"]) => {
-    const now = Date.now();
-    const elapsed = now - startTime;
+  // 对于已停止/完成/失败的任务，使用 endTime；对于进行中的任务，使用当前时间
+  const formatDuration = (startTime: number, endTime: number | undefined, status: Task["status"]) => {
+    // 如果任务已结束且有 endTime，使用 endTime；如果任务正在进行中，使用当前时间
+    const end = endTime || (status === "polling" ? Date.now() : startTime);
+    const elapsed = end - startTime;
     const totalSeconds = Math.floor(elapsed / 1000);
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
@@ -45,24 +47,33 @@ export function TaskList({
         hour: "2-digit",
         minute: "2-digit",
       });
-      durationsMap[task.id] = formatDuration(task.startTime, task.status);
+      durationsMap[task.id] = formatDuration(task.startTime, task.endTime, task.status);
     });
     setFormattedTimes(times);
     setDurations(durationsMap);
     
-    // 对于进行中的任务，每秒更新运行时长
-    const pollingTasks = tasks.filter(t => t.status === "polling");
-    if (pollingTasks.length > 0) {
-      const interval = setInterval(() => {
-        const newDurations: Record<string, string> = {};
-        pollingTasks.forEach((task) => {
-          newDurations[task.id] = formatDuration(task.startTime, task.status);
-        });
-        setDurations(prev => ({ ...prev, ...newDurations }));
-      }, 100); // 每100ms更新一次，以显示毫秒变化
+    // 对于进行中的任务，实时更新运行时长
+    // 关键修复：在 interval 回调中每次都从 store 获取最新的任务状态，而不是使用闭包中的旧值
+    const interval = setInterval(() => {
+      // 从 store 获取最新的任务列表，确保获取到最新的状态
+      const currentTasks = useNexusStore.getState().tasks;
+      const newDurations: Record<string, string> = {};
       
-      return () => clearInterval(interval);
-    }
+      // 只更新仍在进行中的任务
+      currentTasks.forEach((task) => {
+        if (task.status === "polling") {
+          // 只更新进行中的任务
+          newDurations[task.id] = formatDuration(task.startTime, task.endTime, task.status);
+        }
+      });
+      
+      // 只更新有变化的时长
+      if (Object.keys(newDurations).length > 0) {
+        setDurations(prev => ({ ...prev, ...newDurations }));
+      }
+    }, 100); // 每100ms更新一次，以显示毫秒变化
+    
+    return () => clearInterval(interval);
   }, [tasks]);
 
   // 格式化时间

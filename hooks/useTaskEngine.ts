@@ -15,6 +15,63 @@ function getNested(obj: any, path: string | undefined): any {
 }
 
 /**
+ * 判断是否为视频文件
+ */
+function isVideo(url: string | null): boolean {
+  if (!url) return false;
+  return url.includes(".mp4") || url.includes(".mov") || url.includes(".webm") || url.includes(".avi");
+}
+
+/**
+ * 自动下载文件
+ * 通过服务端代理下载，避免浏览器阻止弹出窗口
+ */
+async function autoDownloadFile(url: string, filename?: string) {
+  try {
+    // 通过服务端代理下载文件
+    const downloadUrl = `/api/nexus/download?url=${encodeURIComponent(url)}`;
+    
+    // 使用 fetch 获取文件
+    const response = await fetch(downloadUrl);
+    
+    if (!response.ok) {
+      throw new Error(`下载失败: ${response.status}`);
+    }
+    
+    // 获取文件 blob
+    const blob = await response.blob();
+    
+    // 创建 Blob URL
+    const blobUrl = URL.createObjectURL(blob);
+    
+    // 创建下载链接并触发下载
+    const link = document.createElement("a");
+    link.href = blobUrl;
+    link.download = filename || url.split("/").pop() || "download";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // 清理 Blob URL
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+  } catch (error) {
+    console.error("自动下载失败:", error);
+    // 如果代理下载失败，尝试直接下载（可能会被浏览器阻止）
+    try {
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename || url.split("/").pop() || "download";
+      link.target = "_blank";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (fallbackError) {
+      console.error("直接下载也失败:", fallbackError);
+    }
+  }
+}
+
+/**
  * 添加日志到任务
  */
 function addLog(
@@ -69,7 +126,8 @@ export function useTaskEngine() {
   const submitTask = async (
     model: Model,
     credential: Credential,
-    inputs: Record<string, any>
+    inputs: Record<string, any>,
+    autoDownload: boolean = true
   ): Promise<string | null> => {
     setIsSubmitting(true);
 
@@ -90,6 +148,7 @@ export function useTaskEngine() {
         logs: [],
         result: null,
         summary: inputs["prompt"] || inputs["提示词"] || "Task",
+        autoDownload, // 保存自动下载选项
       };
 
       // 添加到 store
@@ -238,15 +297,35 @@ export function useTaskEngine() {
       if (!model.queryPath) {
         const out = getNested(data, model.paths.outputUrl);
         if (out) {
+          // 获取任务的最新状态，检查是否需要自动下载
+          const latestTask = useNexusStore.getState().tasks.find((t) => t.id === task.id);
+          const shouldAutoDownload = latestTask?.autoDownload !== false; // 默认为 true
+          
           updateTask(task.id, {
             result: out,
             status: "success",
+            endTime: Date.now(), // 记录任务结束时间
           });
           addLog(task.id, "成功 (同步)", "success");
+          
+          // 如果启用了自动下载且是视频文件，则自动下载
+          if (shouldAutoDownload && isVideo(out)) {
+            // 延迟一下，确保任务状态已更新
+            setTimeout(async () => {
+              try {
+                await autoDownloadFile(out);
+                addLog(task.id, "已自动下载视频", "success");
+              } catch (error) {
+                addLog(task.id, "自动下载失败，请手动下载", "warning");
+              }
+            }, 500);
+          }
+          
           return;
         } else {
           updateTask(task.id, {
             status: "failed",
+            endTime: Date.now(), // 记录任务结束时间
           });
           addLog(task.id, "无结果URL", "warning");
           return;
@@ -309,11 +388,30 @@ export function useTaskEngine() {
             ["completed", "success", "video_generation_completed"].includes(st)
           ) {
             if (out) {
+              // 获取任务的最新状态，检查是否需要自动下载
+              const latestTask = useNexusStore.getState().tasks.find((t) => t.id === task.id);
+              const shouldAutoDownload = latestTask?.autoDownload !== false; // 默认为 true
+              
               updateTask(task.id, {
                 result: out,
                 status: "success",
+                endTime: Date.now(), // 记录任务结束时间
               });
               addLog(task.id, "完成！", "success");
+              
+              // 如果启用了自动下载且是视频文件，则自动下载
+              if (shouldAutoDownload && isVideo(out)) {
+                // 延迟一下，确保任务状态已更新
+                setTimeout(async () => {
+                  try {
+                    await autoDownloadFile(out);
+                    addLog(task.id, "已自动下载视频", "success");
+                  } catch (error) {
+                    addLog(task.id, "自动下载失败，请手动下载", "warning");
+                  }
+                }, 500);
+              }
+              
               return;
             }
           }
@@ -322,6 +420,7 @@ export function useTaskEngine() {
           if (["failed", "error"].includes(st)) {
             updateTask(task.id, {
               status: "failed",
+              endTime: Date.now(), // 记录任务结束时间
             });
             // 解析并记录详细的错误信息
             let errorDetail = "任务失败";
@@ -359,6 +458,7 @@ export function useTaskEngine() {
       addLog(task.id, errorMsg, "error");
       updateTask(task.id, {
         status: "failed",
+        endTime: Date.now(), // 记录任务结束时间
       });
     }
   }

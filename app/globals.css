@@ -34,6 +34,18 @@
   background-color: rgba(212, 212, 216, 0.5);
 }
 
+/* 提交次数下拉框居中样式 */
+select[data-submit-count] {
+  text-align: center !important;
+  text-align-last: center !important;
+  padding-left: 0 !important;
+  padding-right: 1.25rem !important;
+}
+
+select[data-submit-count] option {
+  text-align: center !important;
+}
+
 /* PWA 全屏模式支持 - iPhone X 等设备的 safe area */
 @supports (padding: max(0px)) {
   body {

@@ -3,12 +3,19 @@
 import { useState, useEffect } from "react";
 import { useNexusStore } from "@/lib/store";
 import type { Task } from "@/types/nexus";
+import { Edit2 } from "lucide-react";
 
 /**
  * 任务查看器组件
  * 显示任务详情、结果和日志
  */
-export function TaskViewer({ task }: { task: Task }) {
+export function TaskViewer({ 
+  task,
+  onReEdit,
+}: { 
+  task: Task;
+  onReEdit?: (task: Task) => void;
+}) {
   const { updateTask } = useNexusStore();
   const [globalDebug, setGlobalDebug] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -16,9 +23,11 @@ export function TaskViewer({ task }: { task: Task }) {
   const [duration, setDuration] = useState("00:00.00");
 
   // 格式化运行时长：00:00.00（分:秒.毫秒）
-  const formatDuration = (startTime: number, status: Task["status"]) => {
-    const now = Date.now();
-    const elapsed = now - startTime;
+  // 对于已停止/完成/失败的任务，使用 endTime；对于进行中的任务，使用当前时间
+  const formatDuration = (startTime: number, endTime: number | undefined, status: Task["status"]) => {
+    // 如果任务已结束且有 endTime，使用 endTime；如果任务正在进行中，使用当前时间
+    const end = endTime || (status === "polling" ? Date.now() : startTime);
+    const elapsed = end - startTime;
     const totalSeconds = Math.floor(elapsed / 1000);
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
@@ -31,19 +40,30 @@ export function TaskViewer({ task }: { task: Task }) {
   useEffect(() => {
     setMounted(true);
     setFormattedTime(new Date(task.startTime).toLocaleTimeString());
-    setDuration(formatDuration(task.startTime, task.status));
-  }, [task.startTime, task.status]);
+    setDuration(formatDuration(task.startTime, task.endTime, task.status));
+  }, [task.startTime, task.endTime, task.status]);
 
   // 对于进行中的任务，实时更新运行时长
+  // 关键修复：只有当任务状态为 polling 时才更新，已停止的任务不再更新
   useEffect(() => {
     if (task.status === "polling") {
       const interval = setInterval(() => {
-        setDuration(formatDuration(task.startTime, task.status));
+        // 从 store 获取最新的任务状态，确保获取到最新的 endTime
+        const currentTask = useNexusStore.getState().tasks.find((t) => t.id === task.id);
+        if (currentTask && currentTask.status === "polling") {
+          setDuration(formatDuration(currentTask.startTime, currentTask.endTime, currentTask.status));
+        } else {
+          // 如果任务状态已改变，停止更新
+          setDuration(formatDuration(task.startTime, task.endTime, task.status));
+        }
       }, 100); // 每100ms更新一次，以显示毫秒变化
       
       return () => clearInterval(interval);
+    } else {
+      // 如果任务已停止，使用固定的 endTime 计算时长，不再更新
+      setDuration(formatDuration(task.startTime, task.endTime, task.status));
     }
-  }, [task.startTime, task.status]);
+  }, [task.id, task.startTime, task.endTime, task.status]);
 
   // 判断是否为视频
   const isVideo = (url: string | null) => {
@@ -126,18 +146,30 @@ export function TaskViewer({ task }: { task: Task }) {
                 ID: {task.id}
               </p>
             </div>
-            <div className="text-right space-y-2">
-              <div className="text-xs text-zinc-400 dark:text-zinc-500">
-                <span>提交时间 </span>
-                <span className="font-bold text-zinc-700 dark:text-zinc-300 font-mono">
-                  {mounted ? formattedTime : "--:--:--"}
-                </span>
-              </div>
-              <div className="text-xs text-zinc-400 dark:text-zinc-500">
-                <span>运行时长 </span>
-                <span className="font-bold text-zinc-700 dark:text-zinc-300 font-mono">
-                  {mounted ? duration : "00:00.00"}
-                </span>
+            <div className="flex flex-col items-end gap-3">
+              {/* 重新编辑按钮 */}
+              {onReEdit && (
+                <button
+                  onClick={() => onReEdit(task)}
+                  className="flex items-center gap-1.5 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-3 py-1.5 rounded-lg text-xs font-bold transition hover:bg-zinc-800 dark:hover:bg-zinc-100 shadow-sm"
+                >
+                  <Edit2 size={14} />
+                  <span>重新编辑</span>
+                </button>
+              )}
+              <div className="text-right space-y-2">
+                <div className="text-xs text-zinc-400 dark:text-zinc-500">
+                  <span>提交时间 </span>
+                  <span className="font-bold text-zinc-700 dark:text-zinc-300 font-mono">
+                    {mounted ? formattedTime : "--:--:--"}
+                  </span>
+                </div>
+                <div className="text-xs text-zinc-400 dark:text-zinc-500">
+                  <span>运行时长 </span>
+                  <span className="font-bold text-zinc-700 dark:text-zinc-300 font-mono">
+                    {mounted ? duration : "00:00.00"}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
