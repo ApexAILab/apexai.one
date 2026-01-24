@@ -9,6 +9,7 @@ import { TaskList } from "@/components/nexus/TaskList";
 import { BatchProcessor } from "@/components/nexus/BatchProcessor";
 import { SettingsDialog } from "@/components/nexus/SettingsDialog";
 import { Settings, ChevronDown } from "lucide-react";
+import type { Task } from "@/types/nexus";
 
 /**
  * 视图模式类型
