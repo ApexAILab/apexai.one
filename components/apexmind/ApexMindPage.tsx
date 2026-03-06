@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, PenSquare, Database, Settings2, Send, Plus, Trash2 } from "lucide-react";
+import { Sparkles, PenSquare, Database, Settings2, Send, Plus, Trash2, ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -958,19 +958,52 @@ export function ApexMindPage() {
   };
 
   return (
-    <main
-      className={`min-h-screen pt-16 pb-4 px-2 sm:px-4 md:px-6 ${containerBgClass}`}
-    >
-      <div className="mx-auto max-w-7xl h-[calc(100vh-3.5rem)] flex flex-col items-center justify-center">
-        {/* 整体聊天卡片：尽可能居中、轻盈 */}
-        <motion.section
-          initial={{ opacity: 0, y: 10, scale: 0.98 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.25, ease: "easeOut" }}
-          className="relative w-full max-w-4xl h-[min(460px,calc(100vh-6rem))] rounded-[26px] border border-zinc-200/80 dark:border-zinc-800/80 bg-white/90 dark:bg-zinc-950/90 backdrop-blur-2xl shadow-[0_18px_60px_rgba(15,23,42,0.08)] flex flex-col overflow-hidden"
+    <main className={`h-screen md:min-h-screen flex flex-col md:pt-16 pb-4 ${containerBgClass} overflow-hidden md:overflow-auto`}>
+      {/* 顶部窄导航（移动端） */}
+      <header className="sticky top-0 z-40 flex items-center justify-between px-3 py-2 border-b border-zinc-200/70 bg-white/90 text-sm text-zinc-700 dark:bg-zinc-950/90 dark:border-zinc-800/70 dark:text-zinc-100 md:hidden">
+        <button
+          type="button"
+          onClick={() => router.push("/")}
+          className="inline-flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
         >
-          {/* 右上角的轻量工具入口：批量删除对话 / 数据后台 / 设置 */}
-          <div className="absolute top-3 right-3 flex items-center gap-1.5 text-zinc-400 dark:text-zinc-500">
+          <ArrowLeft size={14} />
+          <span>首页</span>
+        </button>
+        <div className="flex items-center gap-1.5">
+          <Sparkles size={15} className="text-zinc-900 dark:text-zinc-50" />
+          <span className="text-sm font-semibold tracking-tight">ApexMind</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => router.push("/apexmind/dashboard")}
+            className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-500 hover:text-zinc-800 hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+            aria-label="数据后台"
+          >
+            <Database size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={openSettings}
+            className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-500 hover:text-zinc-800 hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+            aria-label="设置"
+          >
+            <Settings2 size={14} />
+          </button>
+        </div>
+      </header>
+
+      <div className="flex-1 px-2 sm:px-4 md:px-6 py-3 md:py-4 overflow-hidden">
+        <div className="mx-auto max-w-7xl h-full flex items-stretch justify-center md:items-center md:justify-center">
+          {/* 整体聊天卡片：桌面端保持卡片，移动端占据高度 */}
+          <motion.section
+            initial={{ opacity: 0, y: 10, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+            className="relative w-full max-w-4xl flex flex-col overflow-hidden h-full rounded-2xl bg-white/95 dark:bg-zinc-950/95 md:h-[min(540px,calc(100vh-6rem))] md:rounded-[26px] md:border md:border-zinc-200/80 md:dark:border-zinc-800/80 md:bg-white/90 md:dark:bg-zinc-950/90 md:backdrop-blur-2xl md:shadow-[0_18px_60px_rgba(15,23,42,0.08)]"
+          >
+          {/* 右上角的轻量工具入口：批量删除对话 / 数据后台 / 设置（桌面端） */}
+          <div className="absolute top-3 right-3 hidden md:flex items-center gap-1.5 text-zinc-400 dark:text-zinc-500">
             <button
               type="button"
               onClick={() => {
@@ -1004,8 +1037,8 @@ export function ApexMindPage() {
             </button>
           </div>
 
-          {/* 顶部轻量标题 + 居中记录提示 */}
-          <div className="flex items-center px-5 pt-4 pb-3">
+          {/* 顶部轻量标题 + 居中记录提示（桌面端） */}
+          <div className="hidden md:flex items-center px-5 pt-4 pb-3">
             <div className="flex flex-1 items-center gap-2">
               <div className="flex h-7 w-7 items-center justify-center rounded-full bg-zinc-900 text-zinc-50 dark:bg-zinc-50 dark:text-zinc-900">
                 <Sparkles size={15} />
@@ -1127,7 +1160,7 @@ export function ApexMindPage() {
           )}
 
           {/* 消息流区域 */}
-          <div className="relative flex-1 px-4 pb-2 pt-1 overflow-y-auto">
+          <div className="relative flex-1 px-4 pb-2 pt-7 md:pt-1 overflow-y-auto">
             <div className="flex flex-col gap-2 pb-2">
               {messages.map((msg) => (
                 <motion.div
@@ -1800,6 +1833,7 @@ export function ApexMindPage() {
           )}
         </AnimatePresence>
       </div>
+    </div>
     </main>
   );
 }

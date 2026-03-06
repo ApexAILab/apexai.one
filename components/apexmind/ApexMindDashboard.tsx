@@ -330,6 +330,76 @@ export function ApexMindDashboard() {
     };
   }, [monthCursor, summary]);
 
+  const handleDeleteSession = async (id: string) => {
+    if (!id) return;
+    if (typeof window !== "undefined") {
+      const ok = window.confirm("确定要删除这个会话及其所有消息吗？");
+      if (!ok) return;
+    }
+    try {
+      const res = await fetch(
+        `/api/apexmind/chat/sessions/${encodeURIComponent(id)}`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) {
+        console.error("[ApexMind] 删除会话失败:", await res.text());
+        return;
+      }
+      const data = await res.json();
+      if (!data.success) return;
+
+      setSessions((prev) => prev.filter((s) => s.id !== id));
+      setSessionMessages((prev) =>
+        selectedSessionId === id ? [] : prev
+      );
+      if (selectedSessionId === id) {
+        setSelectedSessionId((prevId) => {
+          if (prevId !== id) return prevId;
+          const next = sessions.filter((s) => s.id !== id);
+          return next[0]?.id ?? "";
+        });
+      }
+    } catch (e) {
+      console.error("[ApexMind] 删除会话异常:", e);
+    }
+  };
+
+  const handleDeleteMessage = async (messageId: string, role: string) => {
+    if (!messageId) return;
+    if (typeof window !== "undefined") {
+      const ok = window.confirm("确定要删除这条消息吗？");
+      if (!ok) return;
+    }
+    try {
+      const res = await fetch("/api/apexmind/chat", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [messageId] }),
+      });
+      if (!res.ok) {
+        console.error("[ApexMind] 删除消息失败:", await res.text());
+        return;
+      }
+      const data = await res.json();
+      if (!data.success) return;
+
+      setSessionMessages((prev) => prev.filter((m) => m.id !== messageId));
+      setSessions((prev) =>
+        prev.map((s) => {
+          if (s.id !== selectedSessionId) return s;
+          const nextTotal = Math.max(0, s.messageCount - 1);
+          const nextUser =
+            role === "user"
+              ? Math.max(0, s.userMessageCount - 1)
+              : s.userMessageCount;
+          return { ...s, messageCount: nextTotal, userMessageCount: nextUser };
+        })
+      );
+    } catch (e) {
+      console.error("[ApexMind] 删除消息异常:", e);
+    }
+  };
+
   return (
     <main className="min-h-screen pt-16 pb-4 px-2 sm:px-4 md:px-6 bg-gradient-to-b from-zinc-50 via-white to-zinc-100 dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-900">
       <div className="mx-auto max-w-6xl h-[calc(100vh-5rem-1rem)] mt-3">
@@ -784,11 +854,10 @@ export function ApexMindDashboard() {
                           {sessions.map((s) => {
                             const active = s.id === selectedSessionId;
                             return (
-                              <button
+                              <div
                                 key={s.id}
-                                type="button"
                                 onClick={() => setSelectedSessionId(s.id)}
-                                className={`w-full text-left px-3 py-2 border-b border-zinc-200/50 dark:border-zinc-800/50 hover:bg-zinc-50 dark:hover:bg-zinc-900/60 transition-colors ${
+                                className={`w-full px-3 py-2 border-b border-zinc-200/50 dark:border-zinc-800/50 hover:bg-zinc-50 dark:hover:bg-zinc-900/60 transition-colors cursor-pointer ${
                                   active ? "bg-zinc-50 dark:bg-zinc-900/60" : "bg-transparent"
                                 }`}
                               >
@@ -798,9 +867,22 @@ export function ApexMindDashboard() {
                                       ? s.title
                                       : new Date(s.startedAt).toLocaleString()}
                                   </span>
-                                  <span className="text-[10px] text-zinc-400 dark:text-zinc-500 shrink-0">
-                                    {formatInt(s.userMessageCount)}
-                                  </span>
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
+                                      {formatInt(s.userMessageCount)}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteSession(s.id);
+                                      }}
+                                      className="inline-flex h-5 w-5 items-center justify-center rounded-full text-zinc-300 hover:text-red-500 hover:bg-red-50 dark:text-zinc-600 dark:hover:text-red-400 dark:hover:bg-red-900/30 transition-colors"
+                                      aria-label="删除会话"
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                  </div>
                                 </div>
                                 <div className="mt-0.5 text-[10px] text-zinc-400 dark:text-zinc-500 flex items-center justify-between gap-2">
                                   <span className="truncate">
@@ -810,7 +892,7 @@ export function ApexMindDashboard() {
                                     共 {formatInt(s.messageCount)} 条
                                   </span>
                                 </div>
-                              </button>
+                              </div>
                             );
                           })}
                         </div>
@@ -853,9 +935,19 @@ export function ApexMindDashboard() {
                                 >
                                   <div className="mb-1 text-[10px] text-zinc-400 dark:text-zinc-500 flex items-center justify-between gap-2">
                                     <span className="uppercase">{m.role}</span>
-                                    <span className="shrink-0">
-                                      {new Date(m.createdAt).toLocaleString()}
-                                    </span>
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                      <span>
+                                        {new Date(m.createdAt).toLocaleString()}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteMessage(m.id, m.role)}
+                                        className="inline-flex h-4 w-4 items-center justify-center rounded-full text-zinc-300 hover:text-red-500 hover:bg-red-50 dark:text-zinc-600 dark:hover:text-red-400 dark:hover:bg-red-900/30 transition-colors"
+                                        aria-label="删除消息"
+                                      >
+                                        <Trash2 size={10} />
+                                      </button>
+                                    </div>
                                   </div>
                                   {m.content}
                                 </div>

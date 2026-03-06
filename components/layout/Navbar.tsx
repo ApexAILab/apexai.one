@@ -56,9 +56,15 @@ export function Navbar() {
     }
   };
 
+  const isApexMind = pathname === "/apexmind" || pathname.startsWith("/apexmind/");
+
   return (
     <>
-      <nav className="fixed top-0 left-0 right-0 z-50 w-full bg-white/70 dark:bg-black/70 backdrop-blur-xl border-b border-zinc-200 dark:border-zinc-800">
+      <nav
+        className={`fixed top-0 left-0 right-0 z-50 w-full bg-white/70 dark:bg-black/70 backdrop-blur-xl border-b border-zinc-200 dark:border-zinc-800 ${
+          isApexMind ? "hidden md:block" : ""
+        }`}
+      >
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
             {/* Logo 区域 (左侧) */}
@@ -214,8 +220,8 @@ export function Navbar() {
         </div>
       </nav>
 
-      {/* 移动端菜单 */}
-      {mobileMenuOpen && (
+      {/* 移动端菜单（ApexMind 页面不展示） */}
+      {mobileMenuOpen && !isApexMind && (
         <div className="fixed inset-0 z-40 pt-16 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-xl md:hidden">
           <div className="flex flex-col h-full">
             {/* 导航链接 */}
