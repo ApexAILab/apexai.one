@@ -10,12 +10,11 @@
 - **非常重要**：如果泄露，攻击者可能伪造登录状态
 
 **如何填写：**
-- 我已经为你生成了一个安全的密钥：`fwF4pozWME9HUMOSo4rg71w4+WFQHyl/t1d/hOWoxMc=`
-- 直接复制这个值到 `.env` 文件中即可
+- 使用命令生成一个安全密钥，然后填入 `.env`
 
 **格式：**
 ```env
-AUTH_SECRET="fwF4pozWME9HUMOSo4rg71w4+WFQHyl/t1d/hOWoxMc="
+AUTH_SECRET="YOUR_AUTH_SECRET"
 ```
 
 **注意：**
@@ -117,7 +116,7 @@ DATABASE_URL="postgresql://user:password@localhost:5432/apexai"
 DIRECT_URL="postgresql://user:password@localhost:5432/apexai"
 
 # NextAuth.js 配置
-AUTH_SECRET="fwF4pozWME9HUMOSo4rg71w4+WFQHyl/t1d/hOWoxMc="
+AUTH_SECRET="YOUR_AUTH_SECRET"
 AUTH_URL="http://localhost:3000"
 
 # Resend 邮件服务
@@ -153,7 +152,7 @@ npm run dev
 ## ❓ 常见问题
 
 **Q: AUTH_SECRET 可以自己随便写吗？**
-A: 不建议。应该使用随机生成的密钥，长度至少 32 字符。我已经为你生成了一个安全的密钥。
+A: 不建议。应该使用随机生成的密钥，长度至少 32 字符。
 
 **Q: 开发和生产环境可以用同一个 AUTH_SECRET 吗？**
 A: 不建议。应该使用不同的密钥，提高安全性。

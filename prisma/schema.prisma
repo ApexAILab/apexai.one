@@ -20,11 +20,24 @@ model User {
   updatedAt DateTime @updatedAt
 
   // 关联：用户的所有帖子
-  posts Post[]
+  posts            Post[]
   // 关联：用户的 Nexus 凭证配置
   nexusCredentials NexusCredential[]
   // 关联：用户的 Nexus 模型配置
-  nexusModels NexusModel[]
+  nexusModels      NexusModel[]
+
+  // 关联：用户的 ApexMind 完整想法
+  mindIdeas        MindIdea[]
+  // 关联：用户的 ApexMind 记录模式原始条目
+  mindRecordEvents MindRecordEvent[]
+  // 关联：用户的 ApexMind 聊天会话
+  mindChatSessions MindChatSession[]
+  // 关联：用户的 ApexMind 聊天消息
+  mindChatMessages MindChatMessage[]
+  // 关联：用户的 ApexMind 草稿
+  mindDraft        MindDraft?
+  // 关联：用户的 ApexMind 设置
+  mindSettings     MindSettings?
 
   @@map("users")
 }
@@ -85,11 +98,11 @@ enum PostType {
 
 model NexusCredential {
   id        String   @id @default(cuid())
-  userId    String   // 关联到用户（实现数据隔离）
+  userId    String // 关联到用户（实现数据隔离）
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name      String   // 凭证名称
-  baseUrl   String   // API 基础 URL
-  token     String   // 访问令牌
+  name      String // 凭证名称
+  baseUrl   String // API 基础 URL
+  token     String // 访问令牌
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -101,20 +114,175 @@ model NexusCredential {
 }
 
 model NexusModel {
-  id           String   @id @default(cuid())
-  userId       String   // 关联到用户（实现数据隔离）
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  credentialId String   // 关联的凭证 ID
+  id           String          @id @default(cuid())
+  userId       String // 关联到用户（实现数据隔离）
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentialId String // 关联的凭证 ID
   credential   NexusCredential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
-  name         String   // 模型名称
-  createPath   String   // 创建任务的 POST 路径
-  queryPath    String   // 查询任务状态的路径（可选，为空表示同步模式）
-  paths        Json     // 响应数据路径配置 { taskId, status, outputUrl }
-  bodyTemplate String   @db.Text // JSON 请求体模板
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  name         String // 模型名称
+  createPath   String // 创建任务的 POST 路径
+  queryPath    String // 查询任务状态的路径（可选，为空表示同步模式）
+  paths        Json // 响应数据路径配置 { taskId, status, outputUrl }
+  bodyTemplate String          @db.Text // JSON 请求体模板
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
 
   @@index([userId])
   @@index([credentialId])
   @@map("nexus_models")
+}
+
+/// ApexMind - 完整想法（Record Mode 打包后的结果）
+model MindIdea {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 合并后的长文本内容（Markdown）
+  content    String   @db.Text
+  /// 从文本中提取的 #标签
+  tags       String[]
+  /// 关联的图片 URL 列表
+  imageUrls  String[]
+  /// 预留元信息字段（入口渠道、客户端信息等）
+  sourceMeta Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  embedding    MindIdeaEmbedding?
+  /// 记录模式下，这条想法由哪些原始条目（文字 / 图片 / 标签等）组成
+  recordEvents MindRecordEvent[]
+
+  @@index([userId, createdAt])
+  @@map("mind_ideas")
+}
+
+/// ApexMind - 记录模式下的原始条目（文字 / 图片 / 标签等）
+/// 用于在重新打开页面时，将历史想法还原为一条条当时的消息
+model MindRecordEvent {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// 归属的完整想法（打包后会关联上，打包前可以为 null）
+  ideaId String?
+  idea   MindIdea? @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+
+  /// 所属的一次记录轮次的分组 id（例如某次连续记录的一组片段）
+  groupId String
+
+  /// 在该 group 内的顺序，便于稳定排序
+  order Int
+
+  /// 原始条目类型：text / image / tag 等
+  kind String
+
+  /// 条目内容：文本或图片 Data URL
+  content String @db.Text
+
+  /// 从该条目中抽取的标签（可选）
+  tags String[]
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, groupId, order])
+  @@map("mind_record_events")
+}
+
+/// ApexMind - 完整想法的向量索引
+model MindIdeaEmbedding {
+  id        String   @id @default(cuid())
+  ideaId    String   @unique
+  idea      MindIdea @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  /// 向量数据（使用 pgvector 存储，Prisma 侧先用 Bytes 占位）
+  embedding Bytes
+  createdAt DateTime @default(now())
+
+  @@map("mind_idea_embeddings")
+}
+
+/// ApexMind - 聊天会话分段（隐式 Session，不在 UI 暴露）
+model MindChatSession {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+  title     String?
+  meta      Json?
+
+  messages MindChatMessage[]
+
+  @@index([userId, startedAt])
+  @@map("mind_chat_sessions")
+}
+
+/// ApexMind - 聊天消息（用户与 AI 的单条消息）
+model MindChatMessage {
+  id        String          @id @default(cuid())
+  sessionId String
+  session   MindChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 角色：user / assistant
+  role      String
+  /// 消息内容（Markdown 文本）
+  content   String          @db.Text
+  meta      Json?
+  createdAt DateTime        @default(now())
+
+  embedding MindChatMessageEmbedding?
+
+  @@index([userId, createdAt])
+  @@map("mind_chat_messages")
+}
+
+/// ApexMind - 聊天消息向量索引（主要针对用户消息）
+model MindChatMessageEmbedding {
+  id        String          @id @default(cuid())
+  messageId String          @unique
+  message   MindChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  /// 冗余存一份角色信息，便于过滤
+  role      String
+  embedding Bytes
+  createdAt DateTime        @default(now())
+
+  @@map("mind_chat_message_embeddings")
+}
+
+/// ApexMind - 记录模式下的草稿分组
+model MindDraft {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 草稿条目数组（文本 / 图片等），以 JSON 形式存储
+  items     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("mind_drafts")
+}
+
+/// ApexMind - 用户个性化设置（模型配置、人设等）
+model MindSettings {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 加密存储的大模型 API Key
+  apiKeyEncrypted   String?
+  baseUrl           String?
+  chatModel         String?
+  embeddingModel    String?
+  /// 系统提示词（人设），Markdown 文本
+  systemPrompt      String?  @db.Text
+  /// RAG 召回数量，默认可以在代码层处理
+  ragTopK           Int?
+  /// RAG 默认时间窗口（单位：天）
+  ragTimeWindowDays Int?
+  /// 多模型配置（用于支持多个不同的 Base URL / Key / Model）
+  models            Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("mind_settings")
 }

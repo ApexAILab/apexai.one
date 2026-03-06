@@ -18,7 +18,7 @@ http://localhost:3000/api/auth/debug
 
 ```env
 # NextAuth.js 必需配置
-AUTH_SECRET="r8HKN480I7jtJimwsQP9w4eHF9EO8pHW80JbYQ80Zxc="
+AUTH_SECRET="YOUR_AUTH_SECRET"
 AUTH_URL="http://localhost:3000"
 
 # Resend 邮件服务
@@ -29,6 +29,7 @@ EMAIL_FROM="onboarding@resend.dev"
 ### 3. 说明
 
 - **AUTH_SECRET**: 已为你生成，直接复制上面的值
+- **AUTH_SECRET**: 使用命令生成安全值填入
 - **AUTH_URL**: 开发环境使用 `http://localhost:3000`
 - **RESEND_API_KEY**: 从 [Resend Dashboard](https://resend.com) 获取
 - **EMAIL_FROM**: 测试时使用 `onboarding@resend.dev`
@@ -65,7 +66,7 @@ DATABASE_URL="postgresql://..."
 DIRECT_URL="postgresql://..."
 
 # NextAuth.js 配置（必需）
-AUTH_SECRET="r8HKN480I7jtJimwsQP9w4eHF9EO8pHW80JbYQ80Zxc="
+AUTH_SECRET="YOUR_AUTH_SECRET"
 AUTH_URL="http://localhost:3000"
 
 # Resend 邮件服务（必需）

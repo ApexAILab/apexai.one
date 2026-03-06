@@ -85,47 +85,57 @@ export function Navbar() {
 
             {/* 链接区域 (中部) - 桌面端 */}
             <div className="hidden md:flex items-center gap-8">
-            <Link
-              href="/secondbrain"
-              className={`text-sm font-medium transition-colors ${
-                pathname === "/secondbrain"
-                  ? "text-zinc-900 dark:text-zinc-50"
-                  : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-50"
-              }`}
-            >
-              SecondBrain
-            </Link>
-            <Link
-              href="/stream"
-              className={`text-sm font-medium transition-colors ${
-                pathname === "/stream"
-                  ? "text-zinc-900 dark:text-zinc-50"
-                  : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-50"
-              }`}
-            >
-              StreamDeck
-            </Link>
-            <Link
-              href="/nexus"
-              className={`text-sm font-medium transition-colors ${
-                pathname === "/nexus"
-                  ? "text-zinc-900 dark:text-zinc-50"
-                  : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-50"
-              }`}
-            >
-              Nexus
-            </Link>
-            <Link
-              href="/dashboard"
-              className={`text-sm font-medium transition-colors ${
-                pathname === "/dashboard"
-                  ? "text-zinc-900 dark:text-zinc-50"
-                  : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-50"
-              }`}
-            >
-              Dashboard
-            </Link>
-          </div>
+              <Link
+                href="/apexmind"
+                className={`text-sm font-medium transition-colors ${
+                  pathname === "/apexmind"
+                    ? "text-zinc-900 dark:text-zinc-50"
+                    : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-50"
+                }`}
+              >
+                ApexMind
+              </Link>
+              <Link
+                href="/secondbrain"
+                className={`text-sm font-medium transition-colors ${
+                  pathname === "/secondbrain"
+                    ? "text-zinc-900 dark:text-zinc-50"
+                    : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-50"
+                }`}
+              >
+                SecondBrain
+              </Link>
+              <Link
+                href="/stream"
+                className={`text-sm font-medium transition-colors ${
+                  pathname === "/stream"
+                    ? "text-zinc-900 dark:text-zinc-50"
+                    : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-50"
+                }`}
+              >
+                StreamDeck
+              </Link>
+              <Link
+                href="/nexus"
+                className={`text-sm font-medium transition-colors ${
+                  pathname === "/nexus"
+                    ? "text-zinc-900 dark:text-zinc-50"
+                    : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-50"
+                }`}
+              >
+                Nexus
+              </Link>
+              <Link
+                href="/dashboard"
+                className={`text-sm font-medium transition-colors ${
+                  pathname === "/dashboard"
+                    ? "text-zinc-900 dark:text-zinc-50"
+                    : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-50"
+                }`}
+              >
+                Dashboard
+              </Link>
+            </div>
 
             {/* 控制区域 (右侧) */}
             <div className="flex items-center gap-2 sm:gap-4">
@@ -210,6 +220,17 @@ export function Navbar() {
           <div className="flex flex-col h-full">
             {/* 导航链接 */}
             <div className="flex flex-col px-4 py-4 space-y-1 border-b border-zinc-200 dark:border-zinc-800">
+              <Link
+                href="/apexmind"
+                onClick={() => setMobileMenuOpen(false)}
+                className={`px-4 py-3 rounded-lg text-base font-medium transition-colors ${
+                  pathname === "/apexmind"
+                    ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50"
+                    : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900"
+                }`}
+              >
+                ApexMind
+              </Link>
               <Link
                 href="/secondbrain"
                 onClick={() => setMobileMenuOpen(false)}
