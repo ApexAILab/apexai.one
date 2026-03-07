@@ -18,6 +18,13 @@ try {
   console.warn('Failed to load .env file explicitly:', error)
 }
 
+// 默认提示词：人设 & RAG 引用说明
+const DEFAULT_SYSTEM_PROMPT =
+  '你是一位帮助用户整理想法、做决策的个人知识教练，会基于用户的历史想法和对话，给出具体的建议。'
+
+const DEFAULT_RAG_CONTEXT_PROMPT =
+  '下面是用户历史中的相关想法与对话片段，请在回答当前问题时将其作为重要上下文参考，但不要逐字复读原文。'
+
 // 动态导入 prisma，避免在构建阶段初始化失败
 async function getPrisma() {
   try {
@@ -55,6 +62,194 @@ function extractTagsFromText(text: string): string[] {
   }
 
   return Array.from(tagSet)
+}
+
+type TimeRange = {
+  from: Date
+  to: Date
+}
+
+/**
+ * 从用户问题中解析时间范围（上个月、本月、上周、最近7天等）
+ * 注意：这是一个尽量简单、可解释的规则解析，不依赖模型本身。
+ */
+function parseTimeRangeFromQuery(content: string, now: Date): TimeRange | null {
+  const text = content.replace(/\s+/g, '')
+
+  // 最近 N 天
+  const recentNDaysMatch = text.match(/最近(\d+|七|七天|三十|三十天|30)天?/)
+  if (recentNDaysMatch) {
+    const raw = recentNDaysMatch[1]
+    let days = Number.parseInt(raw, 10)
+    if (!Number.isFinite(days)) {
+      if (raw.includes('七')) days = 7
+      else if (raw.includes('三十') || raw === '30') days = 30
+    }
+    if (days > 0) {
+      const from = new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
+      return { from, to: now }
+    }
+  }
+
+  const year = now.getFullYear()
+  const month = now.getMonth() // 0-based
+  const day = now.getDate()
+
+  // 绝对日期：YYYY年M月D日 / YYYY年M月D号
+  const absYmd = text.match(/(\d{4})年(\d{1,2})月(\d{1,2})(日|号)?/)
+  if (absYmd) {
+    const y = Number(absYmd[1])
+    const m = Number(absYmd[2]) - 1
+    const d = Number(absYmd[3])
+    if (Number.isFinite(y) && m >= 0 && m < 12 && d >= 1 && d <= 31) {
+      const from = new Date(y, m, d, 0, 0, 0, 0)
+      const to = new Date(y, m, d, 23, 59, 59, 999)
+      return { from, to }
+    }
+  }
+
+  // 今年 M 月 D 日
+  const thisYearYmd = text.match(/今年(\d{1,2})月(\d{1,2})(日|号)?/)
+  if (thisYearYmd) {
+    const m = Number(thisYearYmd[1]) - 1
+    const d = Number(thisYearYmd[2])
+    if (m >= 0 && m < 12 && d >= 1 && d <= 31) {
+      const from = new Date(year, m, d, 0, 0, 0, 0)
+      const to = new Date(year, m, d, 23, 59, 59, 999)
+      return { from, to }
+    }
+  }
+
+  // 去年 M 月 D 日
+  const lastYearYmd = text.match(/去年(\d{1,2})月(\d{1,2})(日|号)?/)
+  if (lastYearYmd) {
+    const m = Number(lastYearYmd[1]) - 1
+    const d = Number(lastYearYmd[2])
+    if (m >= 0 && m < 12 && d >= 1 && d <= 31) {
+      const from = new Date(year - 1, m, d, 0, 0, 0, 0)
+      const to = new Date(year - 1, m, d, 23, 59, 59, 999)
+      return { from, to }
+    }
+  }
+
+  // 仅月日：M月D日/号（默认当前年份）
+  const mdOnly = text.match(/(\d{1,2})月(\d{1,2})(日|号)?/)
+  if (mdOnly) {
+    const m = Number(mdOnly[1]) - 1
+    const d = Number(mdOnly[2])
+    if (m >= 0 && m < 12 && d >= 1 && d <= 31) {
+      const from = new Date(year, m, d, 0, 0, 0, 0)
+      const to = new Date(year, m, d, 23, 59, 59, 999)
+      return { from, to }
+    }
+  }
+
+  // 绝对月份：YYYY年M月
+  const absYm = text.match(/(\d{4})年(\d{1,2})月/)
+  if (absYm) {
+    const y = Number(absYm[1])
+    const m = Number(absYm[2]) - 1
+    if (Number.isFinite(y) && m >= 0 && m < 12) {
+      const from = new Date(y, m, 1, 0, 0, 0, 0)
+      const to = new Date(y, m + 1, 0, 23, 59, 59, 999)
+      return { from, to }
+    }
+  }
+
+  // 今年 M 月
+  const thisYearMonth = text.match(/今年(\d{1,2})月/)
+  if (thisYearMonth) {
+    const m = Number(thisYearMonth[1]) - 1
+    if (m >= 0 && m < 12) {
+      const from = new Date(year, m, 1, 0, 0, 0, 0)
+      const to = new Date(year, m + 1, 0, 23, 59, 59, 999)
+      return { from, to }
+    }
+  }
+
+  // 去年 M 月
+  const lastYearMonth = text.match(/去年(\d{1,2})月/)
+  if (lastYearMonth) {
+    const m = Number(lastYearMonth[1]) - 1
+    if (m >= 0 && m < 12) {
+      const from = new Date(year - 1, m, 1, 0, 0, 0, 0)
+      const to = new Date(year - 1, m + 1, 0, 23, 59, 59, 999)
+      return { from, to }
+    }
+  }
+
+  // 仅月份：M月（不带“本月 / 上月”等前缀，默认按当前年份整月处理）
+  const bareMonth = text.match(/(\d{1,2})月(?![天日号])/)
+  if (bareMonth) {
+    const m = Number(bareMonth[1]) - 1
+    if (m >= 0 && m < 12) {
+      const from = new Date(year, m, 1, 0, 0, 0, 0)
+      const to = new Date(year, m + 1, 0, 23, 59, 59, 999)
+      return { from, to }
+    }
+  }
+
+  // 本月 / 这个月
+  if (/(本月|这个月|这月|本月份)/.test(text)) {
+    const from = new Date(year, month, 1, 0, 0, 0, 0)
+    return { from, to: now }
+  }
+
+  // 上个月
+  if (/(上个月|上月|前一个月)/.test(text)) {
+    const prevMonth = month === 0 ? 11 : month - 1
+    const prevYear = month === 0 ? year - 1 : year
+    const from = new Date(prevYear, prevMonth, 1, 0, 0, 0, 0)
+    const to = new Date(prevYear, prevMonth + 1, 0, 23, 59, 59, 999)
+    return { from, to }
+  }
+
+  // 今年
+  if (/(今年|本年)/.test(text)) {
+    const from = new Date(year, 0, 1, 0, 0, 0, 0)
+    return { from, to: now }
+  }
+
+  // 本周 / 这周（按周一为起点）
+  if (/(本周|这周|这个星期)/.test(text)) {
+    const jsDay = now.getDay() // 0: Sunday
+    const offsetToMonday = jsDay === 0 ? -6 : 1 - jsDay
+    const from = new Date(
+      year,
+      month,
+      day + offsetToMonday,
+      0,
+      0,
+      0,
+      0,
+    )
+    return { from, to: now }
+  }
+
+  // 上周（按周一～周日）
+  if (/(上周|上星期|前一周)/.test(text)) {
+    const jsDay = now.getDay()
+    const offsetToMondayThisWeek = jsDay === 0 ? -6 : 1 - jsDay
+    const mondayThisWeek = new Date(
+      year,
+      month,
+      day + offsetToMondayThisWeek,
+      0,
+      0,
+      0,
+      0,
+    )
+    const mondayLastWeek = new Date(
+      mondayThisWeek.getTime() - 7 * 24 * 60 * 60 * 1000,
+    )
+    const sundayLastWeek = new Date(
+      mondayLastWeek.getTime() + 6 * 24 * 60 * 60 * 1000,
+    )
+    sundayLastWeek.setHours(23, 59, 59, 999)
+    return { from: mondayLastWeek, to: sundayLastWeek }
+  }
+
+  return null
 }
 
 /**
@@ -173,7 +368,20 @@ export async function POST(request: Request) {
     let model = (settings.chatModel || '').trim()
     let embeddingModel = (settings.embeddingModel || '').trim()
     let embeddingApiKey = (settings.apiKeyEncrypted || '').trim()
-    const systemPrompt = settings.systemPrompt?.trim()
+
+    const systemPromptRaw = settings.systemPrompt?.trim()
+    const systemPrompt =
+      systemPromptRaw && systemPromptRaw.length > 0
+        ? systemPromptRaw
+        : DEFAULT_SYSTEM_PROMPT
+
+    const ragContextPromptRaw = (settings as any).ragContextPrompt
+      ? String((settings as any).ragContextPrompt).trim()
+      : ''
+    const ragContextPrompt =
+      ragContextPromptRaw && ragContextPromptRaw.length > 0
+        ? ragContextPromptRaw
+        : DEFAULT_RAG_CONTEXT_PROMPT
 
     // 如果存在多模型配置，则优先使用默认模型的信息，并允许为 embedding 设置单独的 key
     if (settings.models) {
@@ -274,6 +482,9 @@ export async function POST(request: Request) {
     const ragTopK = settings.ragTopK ?? 8
     const ragTimeWindowDays = settings.ragTimeWindowDays ?? 180
 
+    // 从用户问题中尝试解析时间范围（例如“上个月”、“这周”、“最近7天”等）
+    const parsedTimeRange = parseTimeRangeFromQuery(content, now)
+
     let contextText = ''
     let ragContexts: Array<{
       kind: 'idea' | 'chat'
@@ -284,9 +495,13 @@ export async function POST(request: Request) {
     }> = []
 
     if (queryEmbedding && ragTopK > 0 && ragTimeWindowDays > 0) {
-      const fromDate = new Date(
-        now.getTime() - ragTimeWindowDays * 24 * 60 * 60 * 1000,
-      )
+      const fallbackFromDate =
+        ragTimeWindowDays > 0
+          ? new Date(now.getTime() - ragTimeWindowDays * 24 * 60 * 60 * 1000)
+          : new Date(0)
+
+      const fromDate = parsedTimeRange?.from ?? fallbackFromDate
+      const toDate = parsedTimeRange?.to ?? now
 
       // 先尝试为该时间窗口内缺少 Embedding 的历史数据做一次自动补齐（懒加载）
       if (embeddingModel && baseUrl && embeddingApiKey) {
@@ -297,7 +512,7 @@ export async function POST(request: Request) {
             prisma.mindIdea.findMany({
               where: {
                 userId: user.id,
-                createdAt: { gte: fromDate },
+                createdAt: { gte: fromDate, lte: toDate },
                 embedding: null,
               },
               orderBy: { createdAt: 'desc' },
@@ -307,7 +522,7 @@ export async function POST(request: Request) {
               where: {
                 userId: user.id,
                 role: 'user',
-                createdAt: { gte: fromDate },
+                createdAt: { gte: fromDate, lte: toDate },
                 embedding: null,
               },
               orderBy: { createdAt: 'desc' },
@@ -378,10 +593,10 @@ export async function POST(request: Request) {
       const queryTags = extractTagsFromText(content)
 
       try {
-        const ideaWhere: any = {
-          userId: user.id,
-          createdAt: { gte: fromDate },
-        }
+          const ideaWhere: any = {
+            userId: user.id,
+            createdAt: { gte: fromDate, lte: toDate },
+          }
 
         if (queryTags.length > 0) {
           ideaWhere.tags = {
@@ -509,8 +724,7 @@ export async function POST(request: Request) {
       messages.push({
         role: 'system',
         content:
-          '下面是用户历史中的相关想法与对话片段，请在回答当前问题时将其作为重要上下文参考，但不要逐字复读原文：\n\n' +
-          contextText,
+          `${ragContextPrompt}\n\n${contextText}`,
       })
     }
 

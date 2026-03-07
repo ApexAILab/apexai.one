@@ -33,6 +33,8 @@ type TimelineItem = {
   kind: 'text' | 'image'
   content: string
   createdAt: string
+  groupId?: string
+  order?: number
 }
 
 /**
@@ -100,6 +102,8 @@ export async function GET(request: Request) {
         kind,
         content: ev.content,
         createdAt: ev.createdAt.toISOString(),
+        groupId: ev.groupId,
+        order: ev.order,
       })
     }
 
@@ -121,10 +125,26 @@ export async function GET(request: Request) {
     }
 
     // 按时间从旧到新排序，便于直接按顺序渲染
-    merged.sort(
-      (a, b) =>
-        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-    )
+    // 补充：同一条记录组（groupId）内若时间相同，用 order 保证稳定顺序
+    merged.sort((a, b) => {
+      const ta = new Date(a.createdAt).getTime()
+      const tb = new Date(b.createdAt).getTime()
+      if (ta !== tb) return ta - tb
+
+      if (
+        a.source === 'record' &&
+        b.source === 'record' &&
+        a.groupId &&
+        b.groupId &&
+        a.groupId === b.groupId &&
+        typeof a.order === 'number' &&
+        typeof b.order === 'number'
+      ) {
+        return a.order - b.order
+      }
+
+      return a.id.localeCompare(b.id)
+    })
 
     const pageItems = merged.slice(-limit)
 

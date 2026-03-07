@@ -275,10 +275,16 @@ model MindSettings {
   embeddingModel    String?
   /// 系统提示词（人设），Markdown 文本
   systemPrompt      String?  @db.Text
+  /// RAG 引用提示词，用于说明下面是历史想法与对话片段
+  ragContextPrompt  String?  @db.Text
   /// RAG 召回数量，默认可以在代码层处理
   ragTopK           Int?
   /// RAG 默认时间窗口（单位：天）
   ragTimeWindowDays Int?
+  /// 历史对话（总结）在 RAG 中的权重，想法权重固定为 1.0
+  chatWeight        Float?
+  /// 是否在 RAG 中引用历史对话（总结）
+  useChatContexts   Boolean? @default(true)
   /// 多模型配置（用于支持多个不同的 Base URL / Key / Model）
   models            Json?
   createdAt         DateTime @default(now())

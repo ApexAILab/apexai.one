@@ -1,8 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, PenSquare, Database, Settings2, Send, Plus, Trash2, ArrowLeft } from "lucide-react";
+import {
+  Sparkles,
+  PenSquare,
+  Database,
+  Settings2,
+  Send,
+  Plus,
+  Trash2,
+  ArrowLeft,
+  Check,
+  X,
+  Loader2,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -31,6 +45,10 @@ type ChatBubble = {
   kind?: "text" | "image";
   /** 是否为当前会话中尚未打包的记录模式草稿消息 */
   isDraft?: boolean;
+  /** 记录模式：用于将一次打包的条目分成一个组容器 */
+  recordGroupId?: string;
+  /** 记录模式：同组内稳定排序 */
+  recordOrder?: number;
   rag?: {
     ideaCount: number;
     chatCount: number;
@@ -58,11 +76,14 @@ type ModelConfig = {
 
 export function ApexMindPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<Mode>("record");
+  const [mode, setMode] = useState<Mode>("chat");
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [draftItems, setDraftItems] = useState<DraftItem[]>([]);
   const [messages, setMessages] = useState<ChatBubble[]>([]);
+  const [recordDraftGroupId, setRecordDraftGroupId] = useState(
+    () => `draft-${Date.now()}`
+  );
   const [savingIdea, setSavingIdea] = useState(false);
   const [expandedCitationsFor, setExpandedCitationsFor] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -78,8 +99,11 @@ export function ApexMindPage() {
     chatModel: "",
     embeddingModel: "",
     systemPrompt: "",
-    ragTopK: "",
-    ragTimeWindowDays: "",
+    ragContextPrompt: "",
+    ragTopK: "8",
+    ragTimeWindowDays: "180",
+    chatWeight: "0.5",
+    useChatContexts: true,
     hasApiKey: false,
     models: [] as ModelConfig[],
   });
@@ -92,6 +116,7 @@ export function ApexMindPage() {
   const [deletingMessages, setDeletingMessages] = useState(false);
   const importFileInputRef = useRef<HTMLInputElement | null>(null);
   const planetImportFileInputRef = useRef<HTMLInputElement | null>(null);
+  const messageListRef = useRef<HTMLDivElement | null>(null);
 
   // 初始化时加载通用时间线（记录模式条目 + 聊天消息），恢复上一次离开时的整体聊天区状态
   useEffect(() => {
@@ -113,6 +138,8 @@ export function ApexMindPage() {
           kind: "text" | "image";
           content: string;
           createdAt: string;
+          groupId?: string;
+          order?: number;
         }[];
 
         const bubbles: ChatBubble[] = items.map((item) => ({
@@ -122,6 +149,8 @@ export function ApexMindPage() {
           mode: item.mode,
           kind: item.kind,
           createdAt: new Date(item.createdAt),
+          recordGroupId: item.mode === "record" ? item.groupId : undefined,
+          recordOrder: item.mode === "record" ? item.order : undefined,
           serverId:
             item.source === "chat"
               ? item.id.startsWith("chat-")
@@ -171,8 +200,11 @@ export function ApexMindPage() {
           chatModel?: string;
           embeddingModel?: string;
           systemPrompt?: string;
+          ragContextPrompt?: string;
           ragTopK?: number | null;
           ragTimeWindowDays?: number | null;
+          chatWeight?: number | null;
+          useChatContexts?: boolean | null;
           hasApiKey?: boolean;
           models?: any[] | null;
         };
@@ -216,12 +248,21 @@ export function ApexMindPage() {
           chatModel: s.chatModel ?? prev.chatModel,
           embeddingModel: s.embeddingModel ?? prev.embeddingModel,
           systemPrompt: s.systemPrompt ?? prev.systemPrompt,
+          ragContextPrompt: s.ragContextPrompt ?? prev.ragContextPrompt,
           ragTopK:
             s.ragTopK != null ? String(s.ragTopK) : prev.ragTopK,
           ragTimeWindowDays:
             s.ragTimeWindowDays != null
               ? String(s.ragTimeWindowDays)
               : prev.ragTimeWindowDays,
+          chatWeight:
+            s.chatWeight != null && Number.isFinite(s.chatWeight)
+              ? String(s.chatWeight)
+              : prev.chatWeight || "0.5",
+          useChatContexts:
+            typeof s.useChatContexts === "boolean"
+              ? s.useChatContexts
+              : prev.useChatContexts,
           hasApiKey: prev.hasApiKey || Boolean(s.hasApiKey),
           models: models.length > 0 ? models : prev.models,
         }));
@@ -265,6 +306,31 @@ export function ApexMindPage() {
     }
   }
 
+  const handleCancelRecord = useCallback(async () => {
+    try {
+      setDraftItems([]);
+      setMessages((prev) => prev.filter((m) => !m.isDraft));
+      await fetch("/api/apexmind/draft", { method: "DELETE" });
+      setRecordDraftGroupId(`draft-${Date.now()}`);
+    } catch (e) {
+      console.error("[ApexMind] 取消记录失败:", e);
+    }
+  }, []);
+
+  // 消息变更时自动滚动到最新一条（进入页面 / 收到新消息）
+  const scrollToBottom = useCallback(() => {
+    const el = messageListRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, []);
+
+  useEffect(() => {
+    if (messages.length === 0) return;
+    // 放到下一帧，确保 DOM 已渲染完成
+    const id = window.setTimeout(scrollToBottom, 0);
+    return () => window.clearTimeout(id);
+  }, [messages.length, scrollToBottom]);
+
   // 发送消息（根据模式分支）
   const handleSend = async () => {
     const text = input.trim();
@@ -299,6 +365,8 @@ export function ApexMindPage() {
         kind: "image",
         createdAt: new Date(),
         isDraft: true,
+        recordGroupId: recordDraftGroupId,
+        recordOrder: draftItems.length + idx,
       }));
       const draftTextBubbles: ChatBubble[] = hasText
         ? [
@@ -310,6 +378,8 @@ export function ApexMindPage() {
               kind: "text",
               createdAt: new Date(),
               isDraft: true,
+              recordGroupId: recordDraftGroupId,
+              recordOrder: draftItems.length + pendingImages.length,
             },
           ]
         : [];
@@ -524,13 +594,23 @@ export function ApexMindPage() {
       if (data.success) {
         setDraftItems([]);
         await fetch("/api/apexmind/draft", { method: "DELETE" });
+        // 将当前草稿组标记为已保存，并开启下一组记录（用于分卡片）
+        const finishedGroupId = recordDraftGroupId;
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.mode === "record" && m.recordGroupId === finishedGroupId
+              ? { ...m, isDraft: false }
+              : m
+          )
+        );
+        setRecordDraftGroupId(`draft-${Date.now()}`);
         setMessages((prev) => [
           ...prev,
           {
             id: `packed-${Date.now()}`,
             role: "system",
             content: "✅ 本次灵感已打包为一条完整想法。",
-            mode: "record",
+            mode: "chat",
             createdAt: new Date(),
           },
         ]);
@@ -557,8 +637,11 @@ export function ApexMindPage() {
         chatModel?: string;
         embeddingModel?: string;
         systemPrompt?: string;
+        ragContextPrompt?: string;
         ragTopK?: number | null;
         ragTimeWindowDays?: number | null;
+        chatWeight?: number | null;
+        useChatContexts?: boolean | null;
         hasApiKey?: boolean;
         models?: any[] | null;
       };
@@ -602,8 +685,15 @@ export function ApexMindPage() {
         chatModel: s.chatModel ?? "",
         embeddingModel: s.embeddingModel ?? "",
         systemPrompt: s.systemPrompt ?? "",
+        ragContextPrompt: s.ragContextPrompt ?? "",
         ragTopK: s.ragTopK != null ? String(s.ragTopK) : "",
         ragTimeWindowDays: s.ragTimeWindowDays != null ? String(s.ragTimeWindowDays) : "",
+        chatWeight:
+          s.chatWeight != null && Number.isFinite(s.chatWeight)
+            ? String(s.chatWeight)
+            : "0.5",
+        useChatContexts:
+          typeof s.useChatContexts === "boolean" ? s.useChatContexts : true,
         hasApiKey: prev.hasApiKey || Boolean((s as any).apiKey),
         apiKey: (s as any).apiKey ? String((s as any).apiKey) : "",
         models,
@@ -635,6 +725,7 @@ export function ApexMindPage() {
         chatModel: settings.chatModel || null,
         embeddingModel: settings.embeddingModel || null,
         systemPrompt: settings.systemPrompt || null,
+        ragContextPrompt: settings.ragContextPrompt || null,
       };
       if (settings.apiKey.trim()) {
         body.apiKey = settings.apiKey.trim();
@@ -647,6 +738,15 @@ export function ApexMindPage() {
         const n = Number(settings.ragTimeWindowDays.trim());
         if (!Number.isNaN(n)) body.ragTimeWindowDays = n;
       }
+
+      if (settings.chatWeight.trim()) {
+        const v = Number(settings.chatWeight.trim());
+        if (!Number.isNaN(v)) {
+          body.chatWeight = v;
+        }
+      }
+
+      body.useChatContexts = settings.useChatContexts;
 
       // 将前端模型列表同步到后端
       if (settings.models.length > 0) {
@@ -893,6 +993,50 @@ export function ApexMindPage() {
   const defaultModel: ModelConfig | undefined =
     settings.models.find((m) => m.isDefault) || settings.models[0];
 
+  type MessageGroup =
+    | { kind: "record"; groupId: string; items: ChatBubble[] }
+    | { kind: "chat"; item: ChatBubble };
+
+  const groupedMessages = useMemo<MessageGroup[]>(() => {
+    const groups: MessageGroup[] = [];
+    let currentRecord: { groupId: string; items: ChatBubble[] } | null = null;
+    for (const msg of messages) {
+      if (msg.mode === "record") {
+        const gid = msg.recordGroupId || `legacy-${msg.id}`;
+        if (!currentRecord || currentRecord.groupId !== gid) {
+          if (currentRecord && currentRecord.items.length > 0) {
+            groups.push({
+              kind: "record",
+              groupId: currentRecord.groupId,
+              items: currentRecord.items,
+            });
+          }
+          currentRecord = { groupId: gid, items: [msg] };
+        } else {
+          currentRecord.items.push(msg);
+        }
+      } else {
+        if (currentRecord && currentRecord.items.length > 0) {
+          groups.push({
+            kind: "record",
+            groupId: currentRecord.groupId,
+            items: currentRecord.items,
+          });
+          currentRecord = null;
+        }
+        groups.push({ kind: "chat", item: msg });
+      }
+    }
+    if (currentRecord && currentRecord.items.length > 0) {
+      groups.push({
+        kind: "record",
+        groupId: currentRecord.groupId,
+        items: currentRecord.items,
+      });
+    }
+    return groups;
+  }, [messages]);
+
   const markdownComponents = {
     h1: (props: any) => (
       <h1 className="mb-2 text-[15px] font-semibold tracking-tight" {...props} />
@@ -991,9 +1135,10 @@ export function ApexMindPage() {
           type="button"
           onClick={() => router.push("/")}
           className="inline-flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+          aria-label="返回首页"
         >
           <ArrowLeft size={14} />
-          <span>首页</span>
+          <span className="sr-only">首页</span>
         </button>
         <div className="flex items-center gap-1.5">
           <Sparkles size={15} className="text-zinc-900 dark:text-zinc-50" />
@@ -1075,48 +1220,7 @@ export function ApexMindPage() {
                 </span>
               </div>
             </div>
-            <div className="flex flex-1 justify-center">
-              <AnimatePresence initial={false}>
-                {isRecordMode && recordCount > 0 && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: 0.18, ease: "easeOut" }}
-                    className="inline-flex items-center gap-2 rounded-full bg-zinc-100/80 text-zinc-600 px-3 py-1 text-[11px] border border-zinc-200 dark:bg-zinc-900/80 dark:text-zinc-200 dark:border-zinc-700"
-                  >
-                    <span className="text-[11px]">
-                      正在记录想法（{recordCount} 条）
-                    </span>
-                    <button
-                      type="button"
-                      onClick={handlePackIdeas}
-                      disabled={savingIdea}
-                      className="rounded-full bg-zinc-900 text-zinc-50 px-2.5 py-0.5 text-[10px] font-medium hover:bg-zinc-800 disabled:opacity-60 disabled:cursor-not-allowed dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
-                    >
-                      {savingIdea ? "保存中…" : "保存"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        try {
-                          setDraftItems([]);
-                          setMessages((prev) =>
-                            prev.filter((m) => !m.isDraft)
-                          );
-                          await fetch("/api/apexmind/draft", { method: "DELETE" });
-                        } catch (e) {
-                          console.error("[ApexMind] 取消记录失败:", e);
-                        }
-                      }}
-                      className="rounded-full px-2 py-0.5 text-[10px] font-medium text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100"
-                    >
-                      取消
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+            <div className="flex flex-1 justify-center" />
             <div className="flex-1" />
           </div>
 
@@ -1186,130 +1290,308 @@ export function ApexMindPage() {
           )}
 
           {/* 消息流区域 */}
-          <div className="relative flex-1 px-4 pb-2 pt-7 md:pt-1 overflow-y-auto">
+          <div
+            ref={messageListRef}
+            className="relative flex-1 px-4 pb-2 pt-7 md:pt-1 overflow-y-auto"
+          >
             <div className="flex flex-col gap-2 pb-2">
-              {messages.map((msg) => (
-                <motion.div
-                  key={msg.id}
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.18 }}
-                  className={`flex ${
-                    msg.role === "assistant" || msg.role === "system"
-                      ? "justify-start"
-                      : "justify-end"
-                  }`}
-                >
-                  <div
-                    className={`relative max-w-[82%] rounded-2xl px-3 py-2.5 text-sm border shadow-sm ${
-                      msg.role === "assistant"
-                        ? "bg-zinc-50 text-zinc-900 border-zinc-200 dark:bg-zinc-900 dark:text-zinc-50 dark:border-zinc-700"
-                        : msg.role === "system"
-                        ? "bg-zinc-50 text-zinc-700 border-zinc-200 dark:bg-zinc-900 dark:text-zinc-200 dark:border-zinc-700"
-                        : isRecordMode && msg.mode === "record"
-                        ? "bg-emerald-50 text-emerald-900 border-emerald-100 dark:bg-emerald-950 dark:text-emerald-50 dark:border-emerald-900"
-                        : "bg-zinc-100 text-zinc-900 border-zinc-200 dark:bg-zinc-950 dark:text-zinc-50 dark:border-zinc-800"
-                    }`}
-                  >
-                    {deleteMode &&
-                      msg.mode === "chat" &&
-                      msg.serverId &&
-                      msg.role !== "system" && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const id = msg.serverId!;
-                            setSelectedChatMessageIds((prev) =>
-                              prev.includes(id)
-                                ? prev.filter((x) => x !== id)
-                                : [...prev, id]
-                            );
-                          }}
-                          className={`absolute -top-1 -right-1 h-4 w-4 rounded-full border text-[10px] flex items-center justify-center shadow-sm ${
-                            selectedChatMessageIds.includes(msg.serverId)
-                              ? "bg-red-500 border-red-500 text-white"
-                              : "bg-white/90 border-zinc-300 text-zinc-500"
-                          }`}
-                          aria-label="选择删除该对话"
-                        >
-                          ✓
-                        </button>
-                      )}
-                    {msg.kind === "image" || msg.content.startsWith("data:image/") ? (
-                      <img
-                        src={msg.content}
-                        alt="图片消息"
-                        className="max-h-64 max-w-full rounded-lg object-contain"
-                      />
-                    ) : (
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        components={markdownComponents as any}
-                      >
-                        {msg.content}
-                      </ReactMarkdown>
-                    )}
-
-                    {msg.role === "assistant" && (
-                      <div className="mt-2 border-t border-zinc-100 pt-1.5 text-[10px] text-zinc-400 dark:border-zinc-800 dark:text-zinc-500">
-                        <div className="flex items-center justify-between gap-2">
-                          <span>
-                            引用 {msg.rag?.ideaCount ?? 0} 条想法 / {msg.rag?.chatCount ?? 0} 条历史对话
-                          </span>
-                          {(msg.rag?.ideaCount || 0) + (msg.rag?.chatCount || 0) > 0 && (
-                            <button
-                              type="button"
-                              className="hover:text-zinc-600 dark:hover:text-zinc-300"
-                              onClick={async () => {
-                                setExpandedCitationsFor((prev) => (prev === msg.id ? null : msg.id));
-                                if (expandedCitationsFor !== msg.id) {
-                                  await loadCitations(msg.id);
-                                }
-                              }}
+              {groupedMessages.map((group, groupIndex) => {
+                if (group.kind === "record") {
+                  return (
+                    <div
+                      key={`record-group-${groupIndex}`}
+                      className="flex justify-end"
+                    >
+                      <div className="w-full max-w-[82%] rounded-2xl border border-emerald-100 bg-emerald-50/70 px-2.5 py-2 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/40">
+                        <div className="flex flex-col gap-1.5">
+                          {group.items.map((msg) => (
+                            <motion.div
+                              key={msg.id}
+                              initial={{ opacity: 0, y: 4 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ duration: 0.18 }}
+                              className={`flex ${
+                                msg.role === "assistant" || msg.role === "system"
+                                  ? "justify-start"
+                                  : "justify-end"
+                              }`}
                             >
-                              {expandedCitationsFor === msg.id ? "收起" : "查看"}
-                            </button>
-                          )}
-                        </div>
+                              <div
+                                className={`relative max-w-full rounded-2xl px-3 py-2.5 text-base md:text-sm border shadow-sm ${
+                                  msg.role === "assistant"
+                                    ? "bg-zinc-50 text-zinc-900 border-zinc-200 dark:bg-zinc-900 dark:text-zinc-50 dark:border-zinc-700"
+                                    : msg.role === "system"
+                                    ? "bg-zinc-50 text-zinc-700 border-zinc-200 dark:bg-zinc-900 dark:text-zinc-200 dark:border-zinc-700"
+                                    : msg.mode === "record"
+                                    ? "bg-white text-zinc-900 border-emerald-100 dark:bg-zinc-950 dark:text-zinc-50 dark:border-emerald-900"
+                                    : "bg-zinc-100 text-zinc-900 border-zinc-200 dark:bg-zinc-950 dark:text-zinc-50 dark:border-zinc-800"
+                                }`}
+                              >
+                                {deleteMode &&
+                                  msg.mode === "chat" &&
+                                  msg.serverId &&
+                                  msg.role !== "system" && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const id = msg.serverId!;
+                                        setSelectedChatMessageIds((prev) =>
+                                          prev.includes(id)
+                                            ? prev.filter((x) => x !== id)
+                                            : [...prev, id]
+                                        );
+                                      }}
+                                      className={`absolute -top-1 -right-1 h-4 w-4 rounded-full border text-[10px] flex items-center justify-center shadow-sm ${
+                                        selectedChatMessageIds.includes(msg.serverId)
+                                          ? "bg-red-500 border-red-500 text-white"
+                                          : "bg-white/90 border-zinc-300 text-zinc-500"
+                                      }`}
+                                      aria-label="选择删除该对话"
+                                    >
+                                      ✓
+                                    </button>
+                                  )}
+                                {msg.kind === "image" ||
+                                msg.content.startsWith("data:image/") ? (
+                                  <img
+                                    src={msg.content}
+                                    alt="图片消息"
+                                    className="max-h-64 max-w-full rounded-lg object-contain"
+                                  />
+                                ) : (
+                                  <ReactMarkdown
+                                    remarkPlugins={[remarkGfm]}
+                                    components={markdownComponents as any}
+                                  >
+                                    {msg.content}
+                                  </ReactMarkdown>
+                                )}
 
-                        {expandedCitationsFor === msg.id && (
-                          <div className="mt-1.5 space-y-1.5">
-                            {msg.rag?.loading && (
-                              <div className="text-[10px] text-zinc-400 dark:text-zinc-500">
-                                正在加载引用…
-                              </div>
-                            )}
-                            {!msg.rag?.loading &&
-                              (msg.rag?.contexts || []).map((ctx, idx) => (
-                                <div
-                                  key={idx}
-                                  className="rounded-md bg-zinc-50 px-2 py-1.5 text-[10px] text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400"
-                                >
-                                  <div className="mb-0.5 flex items-center justify-between gap-2">
-                                    <span className="shrink-0">
-                                      {ctx.kind === "idea" ? "想法" : "历史对话"} ·{" "}
-                                      {new Date(ctx.createdAt).toLocaleString()}
-                                    </span>
-                                    {ctx.tags && ctx.tags.length > 0 && (
-                                      <span className="truncate">
-                                        #{ctx.tags.join(" #")}
+                                {msg.role === "assistant" && (
+                                  <div className="mt-2 border-t border-zinc-100 pt-1.5 text-[10px] text-zinc-400 dark:border-zinc-800 dark:text-zinc-500">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span>
+                                        引用 {msg.rag?.ideaCount ?? 0} 条想法 /{" "}
+                                        {msg.rag?.chatCount ?? 0} 条历史对话
                                       </span>
+                                      {(msg.rag?.ideaCount || 0) +
+                                        (msg.rag?.chatCount || 0) >
+                                        0 && (
+                                        <button
+                                          type="button"
+                                          className="inline-flex h-4 w-4 items-center justify-center rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                                          onClick={async () => {
+                                            setExpandedCitationsFor((prev) =>
+                                              prev === msg.id ? null : msg.id
+                                            );
+                                            if (expandedCitationsFor !== msg.id) {
+                                              await loadCitations(msg.id);
+                                            }
+                                          }}
+                                          aria-label={
+                                            expandedCitationsFor === msg.id
+                                              ? "收起引用"
+                                              : "展开引用"
+                                          }
+                                        >
+                                          {expandedCitationsFor === msg.id ? (
+                                            <ChevronUp size={12} />
+                                          ) : (
+                                            <ChevronDown size={12} />
+                                          )}
+                                        </button>
+                                      )}
+                                    </div>
+
+                                    {expandedCitationsFor === msg.id && (
+                                      <div className="mt-1.5 space-y-1.5">
+                                        {msg.rag?.loading && (
+                                          <div className="text-[10px] text-zinc-400 dark:text-zinc-500">
+                                            正在加载引用…
+                                          </div>
+                                        )}
+                                        {!msg.rag?.loading &&
+                                          (msg.rag?.contexts || []).map(
+                                            (ctx, idx) => (
+                                              <div
+                                                key={idx}
+                                                className="rounded-md bg-zinc-50 px-2 py-1.5 text-[10px] text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400"
+                                              >
+                                                <div className="mb-0.5 flex items-center justify-between gap-2">
+                                                  <span className="shrink-0">
+                                                    {ctx.kind === "idea"
+                                                      ? "想法"
+                                                      : "历史对话"}{" "}
+                                                    ·{" "}
+                                                    {new Date(
+                                                      ctx.createdAt
+                                                    ).toLocaleString()}
+                                                  </span>
+                                                  {ctx.tags &&
+                                                    ctx.tags.length > 0 && (
+                                                      <span className="truncate">
+                                                        #{ctx.tags.join(" #")}
+                                                      </span>
+                                                    )}
+                                                </div>
+                                                <div className="whitespace-pre-wrap break-words">
+                                                  {ctx.content}
+                                                </div>
+                                              </div>
+                                            )
+                                          )}
+                                      </div>
                                     )}
                                   </div>
-                                  <div className="whitespace-pre-wrap break-words">
-                                    {ctx.content}
-                                  </div>
-                                </div>
-                              ))}
-                          </div>
-                        )}
+                                )}
+                              </div>
+                            </motion.div>
+                          ))}
+                        </div>
                       </div>
-                    )}
-                  </div>
-                </motion.div>
-              ))}
+                    </div>
+                  );
+                }
 
-              {messages.length === 0 && (
+                const msg = group.item;
+                return (
+                  <motion.div
+                    key={msg.id}
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.18 }}
+                    className={`flex ${
+                      msg.role === "assistant" || msg.role === "system"
+                        ? "justify-start"
+                        : "justify-end"
+                    }`}
+                  >
+                    <div
+                      className={`relative max-w-[82%] rounded-2xl px-3 py-2.5 text-base md:text-sm border shadow-sm ${
+                        msg.role === "assistant"
+                          ? "bg-zinc-50 text-zinc-900 border-zinc-200 dark:bg-zinc-900 dark:text-zinc-50 dark:border-zinc-700"
+                          : msg.role === "system"
+                          ? "bg-zinc-50 text-zinc-700 border-zinc-200 dark:bg-zinc-900 dark:text-zinc-200 dark:border-zinc-700"
+                          : msg.mode === "record"
+                          ? "bg-white text-zinc-900 border-emerald-100 dark:bg-zinc-950 dark:text-zinc-50 dark:border-emerald-900"
+                          : "bg-zinc-100 text-zinc-900 border-zinc-200 dark:bg-zinc-950 dark:text-zinc-50 dark:border-zinc-800"
+                      }`}
+                    >
+                      {deleteMode &&
+                        msg.mode === "chat" &&
+                        msg.serverId &&
+                        msg.role !== "system" && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const id = msg.serverId!;
+                              setSelectedChatMessageIds((prev) =>
+                                prev.includes(id)
+                                  ? prev.filter((x) => x !== id)
+                                  : [...prev, id]
+                              );
+                            }}
+                            className={`absolute -top-1 -right-1 h-4 w-4 rounded-full border text-[10px] flex items-center justify-center shadow-sm ${
+                              selectedChatMessageIds.includes(msg.serverId)
+                                ? "bg-red-500 border-red-500 text-white"
+                                : "bg-white/90 border-zinc-300 text-zinc-500"
+                            }`}
+                            aria-label="选择删除该对话"
+                          >
+                            ✓
+                          </button>
+                        )}
+                      {msg.kind === "image" ||
+                      msg.content.startsWith("data:image/") ? (
+                        <img
+                          src={msg.content}
+                          alt="图片消息"
+                          className="max-h-64 max-w-full rounded-lg object-contain"
+                        />
+                      ) : (
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={markdownComponents as any}
+                        >
+                          {msg.content}
+                        </ReactMarkdown>
+                      )}
+
+                      {msg.role === "assistant" && (
+                        <div className="mt-2 border-t border-zinc-100 pt-1.5 text-[10px] text-zinc-400 dark:border-zinc-800 dark:text-zinc-500">
+                          <div className="flex items-center justify-between gap-2">
+                            <span>
+                              引用 {msg.rag?.ideaCount ?? 0} 条想法 /{" "}
+                              {msg.rag?.chatCount ?? 0} 条历史对话
+                            </span>
+                            {(msg.rag?.ideaCount || 0) +
+                              (msg.rag?.chatCount || 0) >
+                              0 && (
+                              <button
+                                type="button"
+                                className="inline-flex h-4 w-4 items-center justify-center rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                                onClick={async () => {
+                                  setExpandedCitationsFor((prev) =>
+                                    prev === msg.id ? null : msg.id
+                                  );
+                                  if (expandedCitationsFor !== msg.id) {
+                                    await loadCitations(msg.id);
+                                  }
+                                }}
+                                aria-label={
+                                  expandedCitationsFor === msg.id
+                                    ? "收起引用"
+                                    : "展开引用"
+                                }
+                              >
+                                {expandedCitationsFor === msg.id ? (
+                                  <ChevronUp size={12} />
+                                ) : (
+                                  <ChevronDown size={12} />
+                                )}
+                              </button>
+                            )}
+                          </div>
+
+                          {expandedCitationsFor === msg.id && (
+                            <div className="mt-1.5 space-y-1.5">
+                              {msg.rag?.loading && (
+                                <div className="text-[10px] text-zinc-400 dark:text-zinc-500">
+                                  正在加载引用…
+                                </div>
+                              )}
+                              {!msg.rag?.loading &&
+                                (msg.rag?.contexts || []).map((ctx, idx) => (
+                                  <div
+                                    key={idx}
+                                    className="rounded-md bg-zinc-50 px-2 py-1.5 text-[10px] text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400"
+                                  >
+                                    <div className="mb-0.5 flex items-center justify-between gap-2">
+                                      <span className="shrink-0">
+                                        {ctx.kind === "idea" ? "想法" : "历史对话"} ·{" "}
+                                        {new Date(ctx.createdAt).toLocaleString()}
+                                      </span>
+                                      {ctx.tags && ctx.tags.length > 0 && (
+                                        <span className="truncate">
+                                          #{ctx.tags.join(" #")}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="whitespace-pre-wrap break-words">
+                                      {ctx.content}
+                                    </div>
+                                  </div>
+                                ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                );
+              })}
+
+              {groupedMessages.length === 0 && (
                 <div className="h-full flex flex-col items-center justify-center text-center text-xs sm:text-sm text-zinc-400 dark:text-zinc-500">
                   <p className="mb-1">此刻还没有任何想法。</p>
                   <p>先写下一句话，或直接问问 ApexMind 在想什么。</p>
@@ -1320,7 +1602,13 @@ export function ApexMindPage() {
 
           {/* 底部输入区：文本 + 模式/模型/发送 全部包裹在一个矩形内，贴合 DeepSeek 布局 */}
           <div className="border-t border-zinc-200/70 dark:border-zinc-800/70 bg-zinc-50/80 dark:bg-zinc-950/90 px-4 py-3">
-            <div className="rounded-2xl border border-zinc-200/80 dark:border-zinc-700/80 bg-white/90 dark:bg-zinc-950/95 shadow-sm px-3.5 py-2.5 flex flex-col gap-1.5">
+            <div
+              className={`rounded-2xl border shadow-sm px-3.5 py-2.5 flex flex-col gap-1.5 bg-white/90 dark:bg-zinc-950/95 ${
+                isRecordMode
+                  ? "border-emerald-300/80 dark:border-emerald-900/70"
+                  : "border-zinc-200/80 dark:border-zinc-700/80"
+              }`}
+            >
               {/* 待发送图片预览 */}
               {pendingImages.length > 0 && (
                 <div className="mb-1 flex flex-wrap gap-2">
@@ -1354,13 +1642,8 @@ export function ApexMindPage() {
               {/* 文本输入区域 */}
               <textarea
                 ref={textareaRef}
-                className="w-full bg-transparent border-0 outline-none resize-none text-sm text-zinc-900 dark:text-zinc-50 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 leading-relaxed max-h-[160px]"
+                className="w-full bg-transparent border-0 outline-none resize-none text-base md:text-sm text-zinc-900 dark:text-zinc-50 leading-relaxed max-h-[160px]"
                 rows={1}
-                placeholder={
-                  isRecordMode
-                    ? "简要记录此刻的想法、灵感或待办事项…"
-                    : "向 ApexMind 提出问题，或让它基于历史想法给出建议…"
-                }
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
@@ -1410,12 +1693,12 @@ export function ApexMindPage() {
                     {isRecordMode ? (
                       <>
                         <Sparkles size={12} className="text-emerald-600" />
-                        <span>记录模式</span>
+                        <span>记录</span>
                       </>
                     ) : (
                       <>
                         <PenSquare size={12} className="text-zinc-500" />
-                        <span>聊天模式</span>
+                        <span>聊天</span>
                       </>
                     )}
                   </button>
@@ -1427,6 +1710,38 @@ export function ApexMindPage() {
                   >
                     <span>{defaultModel?.name || "未配置模型"}</span>
                   </button>
+
+                  {/* 记录状态（放在输入框操作行，位于模型按钮右侧） */}
+                  <AnimatePresence initial={false}>
+                    {isRecordMode && recordCount > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -2 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -2 }}
+                        transition={{ duration: 0.16, ease: "easeOut" }}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white/90 px-2 py-1 text-[11px] text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300"
+                      >
+                        <span className="tabular-nums">{recordCount}条</span>
+                        <button
+                          type="button"
+                          onClick={handlePackIdeas}
+                          disabled={savingIdea}
+                          className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed dark:border-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-300 dark:hover:bg-emerald-950"
+                          aria-label="保存记录"
+                        >
+                          <Check size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleCancelRecord}
+                          className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-900 dark:bg-red-950/60 dark:text-red-300 dark:hover:bg-red-950"
+                          aria-label="取消记录"
+                        >
+                          <X size={14} />
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
 
                 <div className="flex items-center gap-1">
@@ -1446,8 +1761,11 @@ export function ApexMindPage() {
                     className="inline-flex items-center gap-1.5 rounded-full bg-zinc-900 text-zinc-50 px-3 py-1.5 shadow-sm hover:bg-zinc-800 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200 transition-transform"
                     aria-label="发送"
                   >
-                    <Send size={14} />
-                    <span>{sending && !isRecordMode ? "发送中…" : "发送"}</span>
+                    {sending && !isRecordMode ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Send size={14} />
+                    )}
                   </button>
                 </div>
               </div>
@@ -1781,6 +2099,42 @@ export function ApexMindPage() {
                       </div>
                     </div>
 
+                    <div className="flex flex-wrap items-center gap-8">
+                      <label className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                        <input
+                          type="checkbox"
+                          checked={settings.useChatContexts}
+                          onChange={(e) =>
+                            setSettings((prev) => ({
+                              ...prev,
+                              useChatContexts: e.target.checked,
+                            }))
+                          }
+                          className="h-3.5 w-3.5 accent-zinc-900 dark:accent-zinc-100"
+                        />
+                        <span>在 RAG 中引用历史对话</span>
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-zinc-500 dark:text-zinc-400">
+                          历史对话权重
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={1}
+                          step={0.1}
+                          value={settings.chatWeight}
+                          onChange={(e) =>
+                            setSettings((prev) => ({
+                              ...prev,
+                              chatWeight: e.target.value,
+                            }))
+                          }
+                          placeholder="默认 0.5"
+                          className="w-20 rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:ring-zinc-500"
+                        />
+                      </div>
+                    </div>
                     <div className="space-y-1.5">
                       <label className="block text-zinc-500 dark:text-zinc-400">
                         System Prompt（人设）
@@ -1794,7 +2148,24 @@ export function ApexMindPage() {
                             systemPrompt: e.target.value,
                           }))
                         }
-                        placeholder="例如：你是一位帮助用户整理想法、做决策的个人知识教练…"
+                        placeholder="默认：你是一位帮助用户整理想法、做决策的个人知识教练，会基于用户的历史想法和对话，给出具体的建议。"
+                        className="w-full rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-xs text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:ring-zinc-500"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="block text-zinc-500 dark:text-zinc-400">
+                        RAG 引用提示词
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={settings.ragContextPrompt}
+                        onChange={(e) =>
+                          setSettings((prev) => ({
+                            ...prev,
+                            ragContextPrompt: e.target.value,
+                          }))
+                        }
+                        placeholder="默认：下面是用户历史中的相关想法与对话片段，请在回答当前问题时将其作为重要上下文参考，但不要逐字复读原文。"
                         className="w-full rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-xs text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:ring-zinc-500"
                       />
                     </div>

@@ -88,8 +88,11 @@ type SettingsInput = {
   chatModel?: string
   embeddingModel?: string
   systemPrompt?: string
+  ragContextPrompt?: string
   ragTopK?: number
   ragTimeWindowDays?: number
+  chatWeight?: number
+  useChatContexts?: boolean
   models?: {
     id?: string
     name?: string
@@ -146,6 +149,10 @@ export async function PUT(request: Request) {
       data.systemPrompt = body.systemPrompt.trim() || null
     }
 
+    if (typeof body.ragContextPrompt === 'string') {
+      data.ragContextPrompt = body.ragContextPrompt.trim() || null
+    }
+
     if (typeof body.ragTopK === 'number' && Number.isFinite(body.ragTopK)) {
       data.ragTopK = body.ragTopK
     }
@@ -155,6 +162,14 @@ export async function PUT(request: Request) {
       Number.isFinite(body.ragTimeWindowDays)
     ) {
       data.ragTimeWindowDays = body.ragTimeWindowDays
+    }
+
+    if (typeof body.chatWeight === 'number' && Number.isFinite(body.chatWeight)) {
+      data.chatWeight = body.chatWeight
+    }
+
+    if (typeof body.useChatContexts === 'boolean') {
+      data.useChatContexts = body.useChatContexts
     }
 
     // 多模型配置：写入 models 字段，并用默认模型同步顶层配置
@@ -219,8 +234,11 @@ export async function PUT(request: Request) {
         chatModel: settings.chatModel,
         embeddingModel: settings.embeddingModel,
         systemPrompt: settings.systemPrompt,
+        ragContextPrompt: settings.ragContextPrompt,
         ragTopK: settings.ragTopK,
         ragTimeWindowDays: settings.ragTimeWindowDays,
+        chatWeight: settings.chatWeight,
+        useChatContexts: settings.useChatContexts,
         apiKey: settings.apiKeyEncrypted ?? null,
       },
     })

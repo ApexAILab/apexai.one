@@ -8,6 +8,19 @@ import { verifyToken } from "@/lib/auth";
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // 手机端打开根路径时，直接进入 ApexMind（沉浸式体验）
+  // 注：这里基于 User-Agent 判断（middleware 运行在边缘层，无法读取 viewport）
+  if (pathname === "/") {
+    const ua = request.headers.get("user-agent") || "";
+    const isMobile =
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(
+        ua
+      );
+    if (isMobile) {
+      return NextResponse.redirect(new URL("/apexmind", request.url));
+    }
+  }
+
   // 保护 secondbrain 和 nexus 路由
   if (pathname.startsWith("/secondbrain") || pathname.startsWith("/nexus")) {
     // 从请求中获取 Cookie（在 Edge Runtime 中需要手动解析）

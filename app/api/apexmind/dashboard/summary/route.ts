@@ -219,11 +219,10 @@ export async function GET(request: Request) {
       `,
       prismaAny.$queryRaw`
         SELECT
-          COUNT(*)::int AS count,
+          COUNT(*) FILTER (WHERE role = 'user')::int AS count,
           COALESCE(SUM(LENGTH(content)), 0)::int AS chars
         FROM mind_chat_messages
         WHERE "userId" = ${user.id}
-          AND role = 'user'
       `,
       prismaAny.$queryRaw`
         SELECT
@@ -236,11 +235,10 @@ export async function GET(request: Request) {
       `,
       prismaAny.$queryRaw`
         SELECT
-          COUNT(*)::int AS count,
+          COUNT(*) FILTER (WHERE role = 'user')::int AS count,
           COALESCE(SUM(LENGTH(content)), 0)::int AS chars
         FROM mind_chat_messages
         WHERE "userId" = ${user.id}
-          AND role = 'user'
           AND "createdAt" >= ${start}
           AND "createdAt" < ${end}
       `,

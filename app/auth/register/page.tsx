@@ -46,8 +46,8 @@ export default function RegisterPage() {
         return;
       }
 
-      // 注册成功，跳转到首页或 secondbrain
-      router.push("/secondbrain");
+      // 注册成功，跳转到首页（桌面为 ApexAI 主界面，手机通过 middleware 自动进入 ApexMind）
+      router.push("/");
       router.refresh();
     } catch (err) {
       console.error("[Register] 注册异常:", err);
