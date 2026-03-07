@@ -349,7 +349,7 @@ export async function POST(request: Request) {
         try {
           const metaValue =
             msg.meta === undefined ? undefined : (msg.meta as any)
-          const createdMsg = await prisma.mindChatMessage.create({
+          await prisma.mindChatMessage.create({
             data: {
               sessionId: session.id,
               userId: user.id,
@@ -360,9 +360,6 @@ export async function POST(request: Request) {
             },
           })
           importedMessages += 1
-          if (role === 'user') {
-            importedUserMessageIds.push(createdMsg.id)
-          }
         } catch (e) {
           console.error(
             '[ApexMind] 导入 MindChatMessage 失败，已跳过该条记录:',
