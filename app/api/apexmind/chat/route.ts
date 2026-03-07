@@ -592,8 +592,8 @@ export async function POST(request: Request) {
             take: 200,
           })
 
-          const summarizedSessionIds = new Set(
-            existingSummaries.map((s: any) => s.sessionId),
+          const summarizedSessionIds = new Set<string>(
+            existingSummaries.map((s: any) => String(s.sessionId)),
           )
 
           const SESSIONS_BACKFILL_LIMIT = 2
