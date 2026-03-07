@@ -34,6 +34,8 @@ model User {
   mindChatSessions MindChatSession[]
   // 关联：用户的 ApexMind 聊天消息
   mindChatMessages MindChatMessage[]
+  // 关联：用户的 ApexMind 聊天会话总结
+  mindChatSummaries MindChatSummary[]
   // 关联：用户的 ApexMind 草稿
   mindDraft        MindDraft?
   // 关联：用户的 ApexMind 设置
@@ -212,6 +214,7 @@ model MindChatSession {
   meta      Json?
 
   messages MindChatMessage[]
+  summary  MindChatSummary?
 
   @@index([userId, startedAt])
   @@map("mind_chat_sessions")
