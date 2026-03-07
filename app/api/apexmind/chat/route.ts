@@ -568,29 +568,67 @@ export async function POST(request: Request) {
     let buffer = ''
     let fullContent = ''
 
+    // 防御性：确保无论以何种方式结束（正常结束 / [DONE] / 超时 / 取消 / 异常）
+    // 都只保存一次最终内容，并关闭下游流，避免前端长期卡在「发送中」且数据库不落盘。
+    let finalized = false
+    let inactivityTimer: ReturnType<typeof setTimeout> | null = null
+
+    const clearInactivityTimer = () => {
+      if (inactivityTimer) {
+        clearTimeout(inactivityTimer)
+        inactivityTimer = null
+      }
+    }
+
+    const finalizeOnce = async (reason: string) => {
+      if (finalized) return
+      finalized = true
+      clearInactivityTimer()
+
+      try {
+        const finalContent =
+          fullContent.trim().length > 0
+            ? fullContent
+            : '（模型未返回内容）'
+
+        await prisma.mindChatMessage.update({
+          where: { id: assistantMessage.id },
+          data: { content: finalContent },
+        })
+      } catch (saveErr) {
+        console.error(
+          '[ApexMind] 保存流式 AI 回复失败（不影响前端显示）:',
+          saveErr,
+          'reason=',
+          reason
+        )
+      }
+    }
+
+    const armInactivityTimer = (
+      controller: ReadableStreamDefaultController<Uint8Array>,
+    ) => {
+      clearInactivityTimer()
+      // 若上游在 15 秒内没有新 token（常见于部分供应商不发 [DONE] 且保持长连接），
+      // 则认为回答已经结束，直接落盘并关闭流，避免前端长时间挂起。
+      inactivityTimer = setTimeout(async () => {
+        console.warn(
+          '[ApexMind] 上游流在 15s 内无新数据，触发超时结束（将使用当前已累积内容）',
+        )
+        await finalizeOnce('idle-timeout')
+        controller.close()
+        try {
+          await upstreamReader.cancel()
+        } catch {}
+      }, 15_000)
+    }
+
     const stream = new ReadableStream<Uint8Array>({
       async pull(controller) {
         try {
           const { done, value } = await upstreamReader.read()
           if (done) {
-            // 上游流结束后，将完整回答写入数据库
-            try {
-              const finalContent =
-                fullContent.trim().length > 0
-                  ? fullContent
-                  : '（模型未返回内容）'
-
-              await prisma.mindChatMessage.update({
-                where: { id: assistantMessage.id },
-                data: { content: finalContent },
-              })
-            } catch (saveErr) {
-              console.error(
-                '[ApexMind] 保存流式 AI 回复失败（不影响前端显示）:',
-                saveErr
-              )
-            }
-
+            await finalizeOnce('upstream-done')
             controller.close()
             return
           }
@@ -612,23 +650,7 @@ export async function POST(request: Request) {
 
             // OpenAI 兼容流以 [DONE] 结尾，这里主动结束下游流，避免连接长时间悬挂
             if (dataPart === '[DONE]') {
-              try {
-                const finalContent =
-                  fullContent.trim().length > 0
-                    ? fullContent
-                    : '（模型未返回内容）'
-
-                await prisma.mindChatMessage.update({
-                  where: { id: assistantMessage.id },
-                  data: { content: finalContent },
-                })
-              } catch (saveErr) {
-                console.error(
-                  '[ApexMind] 保存流式 AI 回复失败（不影响前端显示）:',
-                  saveErr
-                )
-              }
-
+              await finalizeOnce('upstream-done-flag')
               controller.close()
               await upstreamReader.cancel().catch(() => {})
               return
@@ -647,6 +669,9 @@ export async function POST(request: Request) {
 
             fullContent += delta
             controller.enqueue(encoder.encode(delta))
+
+            // 只要有新 token，就重置「无活动超时」计时
+            armInactivityTimer(controller)
           }
 
           // 处理极端情况：上游最后一个 chunk 没有换行，导致 buffer 里残留 "data: [DONE]"
@@ -656,21 +681,7 @@ export async function POST(request: Request) {
             tail === 'data:[DONE]' ||
             tail === '[DONE]'
           ) {
-            try {
-              const finalContent =
-                fullContent.trim().length > 0
-                  ? fullContent
-                  : '（模型未返回内容）'
-              await prisma.mindChatMessage.update({
-                where: { id: assistantMessage.id },
-                data: { content: finalContent },
-              })
-            } catch (saveErr) {
-              console.error(
-                '[ApexMind] 保存流式 AI 回复失败（不影响前端显示）:',
-                saveErr
-              )
-            }
+            await finalizeOnce('upstream-done-flag-tail')
             controller.close()
             await upstreamReader.cancel().catch(() => {})
             buffer = ''
@@ -679,13 +690,18 @@ export async function POST(request: Request) {
         } catch (err) {
           console.error('[ApexMind] 处理流式上游响应失败:', err)
           try {
+            await finalizeOnce('upstream-error')
             await upstreamReader.cancel()
           } catch {}
+          clearInactivityTimer()
           controller.error(err)
         }
       },
-      cancel() {
-        upstreamReader.cancel().catch(() => {})
+      async cancel() {
+        // 前端中断连接（例如用户刷新页面），仍然尝试用当前已累积内容落盘，避免丢失
+        await finalizeOnce('downstream-cancel')
+        clearInactivityTimer()
+        await upstreamReader.cancel().catch(() => {})
       },
     })
 
