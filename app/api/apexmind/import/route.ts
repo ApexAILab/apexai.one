@@ -113,7 +113,7 @@ export async function POST(request: Request) {
     let importedSessions = 0
     let importedMessages = 0
     const importedIdeaIds: string[] = []
-    const importedUserMessageIds: string[] = []
+    const importedSessionIds: string[] = []
 
     // 1. 导入完整想法（MindIdea + MindRecordEvent）
     for (const raw of ideasRaw) {
@@ -328,6 +328,7 @@ export async function POST(request: Request) {
           },
         })
         importedSessions += 1
+        importedSessionIds.push(session.id)
       } catch (e) {
         console.error('[ApexMind] 创建导入会话失败，已跳过该组消息:', e)
         continue
@@ -382,8 +383,10 @@ export async function POST(request: Request) {
         let baseUrl = (settings.baseUrl || '').trim()
         let embeddingModel = (settings.embeddingModel || '').trim()
         let embeddingApiKey = (settings.apiKeyEncrypted || '').trim()
+        let chatModel = (settings.chatModel || '').trim()
+        let chatApiKey = (settings.apiKeyEncrypted || '').trim()
 
-        // 复用多模型配置解析逻辑，优先使用默认模型的 embedding 配置
+        // 复用多模型配置解析逻辑，优先使用默认模型的 embedding / chat 配置
         if (settings.models) {
           try {
             const rawModels = Array.isArray(settings.models)
@@ -417,8 +420,14 @@ export async function POST(request: Request) {
               if (defaultModel.embeddingModel) {
                 embeddingModel = defaultModel.embeddingModel
               }
+              if (defaultModel.chatModel) {
+                chatModel = defaultModel.chatModel
+              }
               // embeddingApiKey 必须显式配置，不复用 apiKey
               embeddingApiKey = defaultModel.embeddingApiKey || ''
+              if (defaultModel.apiKey) {
+                chatApiKey = defaultModel.apiKey
+              }
             }
           } catch (parseErr) {
             console.error(
@@ -466,41 +475,100 @@ export async function POST(request: Request) {
           }
         }
 
-        // 为导入的聊天用户消息生成 Embedding
-        if (importedUserMessageIds.length > 0) {
-          const msgsToEmbed = await prisma.mindChatMessage.findMany({
-            where: {
-              id: { in: importedUserMessageIds },
-              userId: user.id,
-              role: 'user',
-            },
-          })
+        // 为导入的会话生成会话总结 + Embedding（小批量）
+        if (importedSessionIds.length > 0 && baseUrl && chatModel && chatApiKey) {
+          const prismaAny: any = prisma
 
-          for (const msg of msgsToEmbed) {
+          const chatSummaryPromptRaw = (settings as any).chatSummaryPrompt
+            ? String((settings as any).chatSummaryPrompt).trim()
+            : ''
+          const chatSummaryPrompt =
+            chatSummaryPromptRaw && chatSummaryPromptRaw.length > 0
+              ? chatSummaryPromptRaw
+              : '你是一位擅长总结信息的助理。请阅读下面这一组对话记录，用简洁的中文总结出这段对话中最重要的 3-5 个要点（事件、决策、待办事项、结论），不要逐字复述原话，使用条列式输出。'
+
+          const MAX_SESSIONS = 10
+          const sessionIdsLimited = importedSessionIds.slice(0, MAX_SESSIONS)
+
+          for (const sid of sessionIdsLimited) {
             try {
-              const vec = await embedText({
+              const messagesInSession = await prisma.mindChatMessage.findMany({
+                where: { sessionId: sid, userId: user.id },
+                orderBy: { createdAt: 'asc' },
+              })
+              if (!messagesInSession.length) continue
+
+              const convoLines: string[] = []
+              for (const m of messagesInSession) {
+                const prefix = m.role === 'assistant' ? 'AI' : '用户'
+                convoLines.push(`[${prefix} ${m.createdAt.toISOString()}]`)
+                convoLines.push(m.content)
+                convoLines.push('')
+              }
+              const convoText = convoLines.join('\n')
+
+              const endpoint = `${baseUrl.replace(
+                /\/$/,
+                '',
+              )}/v1/chat/completions`
+
+              const summaryRes = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${chatApiKey}`,
+                },
+                body: JSON.stringify({
+                  model: chatModel,
+                  messages: [
+                    { role: 'system', content: chatSummaryPrompt },
+                    { role: 'user', content: convoText },
+                  ],
+                  stream: false,
+                }),
+              })
+
+              if (!summaryRes.ok) {
+                console.error(
+                  '[ApexMind] 导入后生成会话总结失败:',
+                  sid,
+                  await summaryRes.text().catch(() => ''),
+                )
+                continue
+              }
+
+              const summaryJson = await summaryRes.json().catch(() => null)
+              const summaryContent: string =
+                summaryJson?.choices?.[0]?.message?.content || ''
+              const trimmedSummary = String(summaryContent || '').trim()
+              if (!trimmedSummary) continue
+
+              const summaryVec = await embedText({
                 baseUrl,
                 apiKey: embeddingApiKey,
                 model: embeddingModel,
-                input: msg.content,
+                input: trimmedSummary,
               })
-              if (!vec) continue
+              const summaryEmbedding = summaryVec
+                ? serializeEmbedding(summaryVec)
+                : null
 
-              await prisma.mindChatMessageEmbedding.upsert({
-                where: { messageId: msg.id },
+              await prismaAny.mindChatSummary.upsert({
+                where: { sessionId: sid },
                 update: {
-                  embedding: serializeEmbedding(vec),
-                  role: msg.role,
+                  content: trimmedSummary,
+                  ...(summaryEmbedding ? { embedding: summaryEmbedding } : {}),
                 },
                 create: {
-                  messageId: msg.id,
-                  role: msg.role,
-                  embedding: serializeEmbedding(vec),
+                  sessionId: sid,
+                  userId: user.id,
+                  content: trimmedSummary,
+                  ...(summaryEmbedding ? { embedding: summaryEmbedding } : {}),
                 },
               })
             } catch (e) {
               console.error(
-                '[ApexMind] 导入后为 MindChatMessage 生成 Embedding 失败:',
+                '[ApexMind] 导入后生成会话总结及 Embedding 失败:',
                 e,
               )
             }

@@ -250,6 +250,24 @@ model MindChatMessageEmbedding {
   @@map("mind_chat_message_embeddings")
 }
 
+/// ApexMind - 聊天会话总结（用于 RAG，仅对总结文本做向量）
+model MindChatSummary {
+  id        String          @id @default(cuid())
+  sessionId String          @unique
+  session   MindChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 会话总结内容（Markdown 文本）
+  content   String          @db.Text
+  /// 总结向量
+  embedding Bytes?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([userId, createdAt])
+  @@map("mind_chat_summaries")
+}
+
 /// ApexMind - 记录模式下的草稿分组
 model MindDraft {
   id        String   @id @default(cuid())
@@ -285,6 +303,8 @@ model MindSettings {
   chatWeight        Float?
   /// 是否在 RAG 中引用历史对话（总结）
   useChatContexts   Boolean? @default(true)
+  /// 对话总结提示词，用于生成会话层面的 summary
+  chatSummaryPrompt String?  @db.Text
   /// 多模型配置（用于支持多个不同的 Base URL / Key / Model）
   models            Json?
   createdAt         DateTime @default(now())

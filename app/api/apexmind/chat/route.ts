@@ -452,7 +452,7 @@ export async function POST(request: Request) {
       },
     })
 
-    // 3. 为当前用户消息生成 Embedding 并写入 MindChatMessageEmbedding
+    // 3. 为当前问题生成向量，用于后续 RAG 检索
     let queryEmbedding: Float32Array | null = null
     if (embeddingModel && baseUrl && embeddingApiKey) {
       try {
@@ -462,18 +462,8 @@ export async function POST(request: Request) {
           model: embeddingModel,
           input: content,
         })
-
-        if (queryEmbedding) {
-          await prisma.mindChatMessageEmbedding.create({
-            data: {
-              messageId: userMessage.id,
-              role: 'user',
-              embedding: serializeEmbedding(queryEmbedding),
-            },
-          })
-        }
       } catch (embedErr) {
-        console.error('[ApexMind] 为聊天消息生成 Embedding 失败:', embedErr)
+        console.error('[ApexMind] 为当前问题生成 Embedding 失败:', embedErr)
         queryEmbedding = null
       }
     }
@@ -481,6 +471,22 @@ export async function POST(request: Request) {
     // 4. 基于 Embedding 做 RAG 检索（完整想法 + 历史聊天）
     const ragTopK = settings.ragTopK ?? 8
     const ragTimeWindowDays = settings.ragTimeWindowDays ?? 180
+
+    const chatWeightRaw = (settings as any).chatWeight
+    const chatWeight =
+      typeof chatWeightRaw === 'number' && Number.isFinite(chatWeightRaw)
+        ? chatWeightRaw
+        : 0.5
+    const useChatContexts =
+      (settings as any).useChatContexts === false ? false : true
+
+    const chatSummaryPromptRaw = (settings as any).chatSummaryPrompt
+      ? String((settings as any).chatSummaryPrompt).trim()
+      : ''
+    const chatSummaryPrompt =
+      chatSummaryPromptRaw && chatSummaryPromptRaw.length > 0
+        ? chatSummaryPromptRaw
+        : '你是一位擅长总结信息的助理。请阅读下面这一组对话记录，用简洁的中文总结出这段对话中最重要的 3-5 个要点（事件、决策、待办事项、结论），不要逐字复述原话，使用条列式输出。'
 
     // 从用户问题中尝试解析时间范围（例如“上个月”、“这周”、“最近7天”等）
     const parsedTimeRange = parseTimeRangeFromQuery(content, now)
@@ -503,32 +509,19 @@ export async function POST(request: Request) {
       const fromDate = parsedTimeRange?.from ?? fallbackFromDate
       const toDate = parsedTimeRange?.to ?? now
 
-      // 先尝试为该时间窗口内缺少 Embedding 的历史数据做一次自动补齐（懒加载）
+      // 先尝试为该时间窗口内缺少 Embedding 的历史想法做一次自动补齐（懒加载）
       if (embeddingModel && baseUrl && embeddingApiKey) {
         try {
           const BACKFILL_LIMIT = 10
-
-          const [ideasToBackfill, chatsToBackfill] = await Promise.all([
-            prisma.mindIdea.findMany({
-              where: {
-                userId: user.id,
-                createdAt: { gte: fromDate, lte: toDate },
-                embedding: null,
-              },
-              orderBy: { createdAt: 'desc' },
-              take: BACKFILL_LIMIT,
-            }),
-            prisma.mindChatMessage.findMany({
-              where: {
-                userId: user.id,
-                role: 'user',
-                createdAt: { gte: fromDate, lte: toDate },
-                embedding: null,
-              },
-              orderBy: { createdAt: 'desc' },
-              take: BACKFILL_LIMIT,
-            }),
-          ])
+          const ideasToBackfill = await prisma.mindIdea.findMany({
+            where: {
+              userId: user.id,
+              createdAt: { gte: fromDate, lte: toDate },
+              embedding: null,
+            },
+            orderBy: { createdAt: 'desc' },
+            take: BACKFILL_LIMIT,
+          })
 
           // 为缺失的 MindIdea 生成 Embedding
           for (const idea of ideasToBackfill) {
@@ -554,36 +547,6 @@ export async function POST(request: Request) {
             }
           }
 
-          // 为缺失的 MindChatMessage 生成 Embedding（仅用户消息）
-          for (const msg of chatsToBackfill) {
-            try {
-              const vec = await embedText({
-                baseUrl,
-                apiKey: embeddingApiKey,
-                model: embeddingModel,
-                input: msg.content,
-              })
-              if (!vec) continue
-
-              await prisma.mindChatMessageEmbedding.upsert({
-                where: { messageId: msg.id },
-                update: {
-                  embedding: serializeEmbedding(vec),
-                  role: msg.role,
-                },
-                create: {
-                  messageId: msg.id,
-                  role: msg.role,
-                  embedding: serializeEmbedding(vec),
-                },
-              })
-            } catch (e) {
-              console.error(
-                '[ApexMind] Backfill MindChatMessageEmbedding 失败:',
-                e
-              )
-            }
-          }
         } catch (backfillErr) {
           console.error('[ApexMind] Backfill embeddings 出错:', backfillErr)
         }
@@ -593,10 +556,10 @@ export async function POST(request: Request) {
       const queryTags = extractTagsFromText(content)
 
       try {
-          const ideaWhere: any = {
-            userId: user.id,
-            createdAt: { gte: fromDate, lte: toDate },
-          }
+        const ideaWhere: any = {
+          userId: user.id,
+          createdAt: { gte: fromDate, lte: toDate },
+        }
 
         if (queryTags.length > 0) {
           ideaWhere.tags = {
@@ -604,34 +567,137 @@ export async function POST(request: Request) {
           }
         }
 
-        const [ideaEmbeddings, messageEmbeddings] = await Promise.all([
-          prisma.mindIdeaEmbedding.findMany({
+        // 1) 获取想法向量
+        const ideaEmbeddings = await prisma.mindIdeaEmbedding.findMany({
+          where: {
+            idea: ideaWhere,
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 200,
+          include: {
+            idea: true,
+          },
+        })
+
+        // 2) 懒加载生成会话总结（小批量）
+        let chatSummaries: any[] = []
+        if (useChatContexts && embeddingModel && baseUrl && embeddingApiKey) {
+          const prismaAny: any = prisma
+          const existingSummaries = await prismaAny.mindChatSummary.findMany({
             where: {
-              idea: ideaWhere,
+              userId: user.id,
+              createdAt: { gte: fromDate, lte: toDate },
             },
             orderBy: { createdAt: 'desc' },
             take: 200,
-            include: {
-              idea: true,
-            },
-          }),
-          prisma.mindChatMessageEmbedding.findMany({
+          })
+
+          const summarizedSessionIds = new Set(
+            existingSummaries.map((s: any) => s.sessionId),
+          )
+
+          const SESSIONS_BACKFILL_LIMIT = 2
+          const sessionsToSummarize = await prisma.mindChatSession.findMany({
             where: {
-              role: 'user',
-              message: {
-                userId: user.id,
-                createdAt: {
-                  gte: fromDate,
+              userId: user.id,
+              startedAt: { gte: fromDate, lte: toDate },
+              id: { notIn: Array.from(summarizedSessionIds) },
+            },
+            orderBy: { startedAt: 'desc' },
+            take: SESSIONS_BACKFILL_LIMIT,
+          })
+
+          for (const s of sessionsToSummarize) {
+            try {
+              const messagesInSession = await prisma.mindChatMessage.findMany({
+                where: { sessionId: s.id, userId: user.id },
+                orderBy: { createdAt: 'asc' },
+              })
+
+              if (!messagesInSession.length) continue
+
+              const convoTextLines: string[] = []
+              for (const m of messagesInSession) {
+                const prefix = m.role === 'assistant' ? 'AI: ' : '用户: '
+                convoTextLines.push(prefix + m.content)
+              }
+              const convoText = convoTextLines.join('\n\n')
+
+              const endpoint = `${baseUrl.replace(
+                /\/$/,
+                '',
+              )}/v1/chat/completions`
+
+              const summaryRes = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${chatApiKey}`,
                 },
-              },
+                body: JSON.stringify({
+                  model,
+                  messages: [
+                    { role: 'system', content: chatSummaryPrompt },
+                    { role: 'user', content: convoText },
+                  ],
+                  stream: false,
+                }),
+              })
+
+              if (!summaryRes.ok) {
+                console.error(
+                  '[ApexMind] 生成会话总结失败:',
+                  s.id,
+                  await summaryRes.text().catch(() => ''),
+                )
+                continue
+              }
+
+              const summaryJson = await summaryRes.json().catch(() => null)
+              const summaryContent: string =
+                summaryJson?.choices?.[0]?.message?.content || ''
+              const trimmedSummary = String(summaryContent || '').trim()
+              if (!trimmedSummary) continue
+
+              const summaryVec = await embedText({
+                baseUrl,
+                apiKey: embeddingApiKey,
+                model: embeddingModel,
+                input: trimmedSummary,
+              })
+
+              const summaryEmbedding = summaryVec
+                ? serializeEmbedding(summaryVec)
+                : null
+
+              await prismaAny.mindChatSummary.upsert({
+                where: { sessionId: s.id },
+                update: {
+                  content: trimmedSummary,
+                  ...(summaryEmbedding ? { embedding: summaryEmbedding } : {}),
+                },
+                create: {
+                  sessionId: s.id,
+                  userId: user.id,
+                  content: trimmedSummary,
+                  ...(summaryEmbedding ? { embedding: summaryEmbedding } : {}),
+                },
+              })
+            } catch (e) {
+              console.error('[ApexMind] 生成会话总结异常:', e)
+            }
+          }
+
+          chatSummaries = await prismaAny.mindChatSummary.findMany({
+            where: {
+              userId: user.id,
+              createdAt: { gte: fromDate, lte: toDate },
+              embedding: { not: null },
             },
             orderBy: { createdAt: 'desc' },
             take: 200,
-            include: {
-              message: true,
-            },
-          }),
-        ])
+          })
+        }
 
         type RankedContext = {
           score: number
@@ -639,6 +705,7 @@ export async function POST(request: Request) {
           content: string
           createdAt: Date
           tags?: string[]
+          sessionId?: string // 对话总结对应的会话
         }
 
         const ranked: RankedContext[] = []
@@ -658,18 +725,23 @@ export async function POST(request: Request) {
           })
         }
 
-        for (const row of messageEmbeddings) {
-          const vec = deserializeEmbedding(row.embedding)
-          if (!vec) continue
-          const score = cosineSimilarity(queryEmbedding, vec)
-          if (!Number.isFinite(score) || score <= 0) continue
+        if (useChatContexts) {
+          for (const row of chatSummaries) {
+            if (!row.embedding) continue
+            const vec = deserializeEmbedding(row.embedding)
+            if (!vec) continue
+            let score = cosineSimilarity(queryEmbedding, vec)
+            if (!Number.isFinite(score) || score <= 0) continue
+            score *= chatWeight
 
-          ranked.push({
-            score,
-            kind: 'chat',
-            content: row.message.content,
-            createdAt: row.message.createdAt,
-          })
+            ranked.push({
+              score,
+              kind: 'chat',
+              content: row.content,
+              createdAt: row.createdAt,
+              sessionId: row.sessionId,
+            })
+          }
         }
 
         if (ranked.length > 0) {
@@ -690,17 +762,52 @@ export async function POST(request: Request) {
                 item.content,
                 '',
               )
-            } else {
-              lines.push(`[历史对话 ${ts}]`, item.content, '')
-            }
 
-            ragContexts.push({
-              kind: item.kind,
-              createdAt: ts,
-              score: item.score,
-              tags: item.tags,
-              content: item.content,
-            })
+              ragContexts.push({
+                kind: 'idea',
+                createdAt: ts,
+                score: item.score,
+                tags: item.tags,
+                content: item.content,
+              })
+            } else if (item.sessionId) {
+              // 对话：用 summary 做检索，但在引用和上下文里使用原始对话内容
+              try {
+                const sessionMessages = await prisma.mindChatMessage.findMany({
+                  where: {
+                    sessionId: item.sessionId,
+                    userId: user.id,
+                  },
+                  orderBy: { createdAt: 'asc' },
+                })
+
+                if (sessionMessages.length > 0) {
+                  const convoLines: string[] = []
+                  for (const m of sessionMessages) {
+                    const prefix = m.role === 'assistant' ? 'AI' : '用户'
+                    convoLines.push(`[${prefix} ${m.createdAt.toISOString()}]`)
+                    convoLines.push(m.content)
+                    convoLines.push('')
+                  }
+
+                  const convoText = convoLines.join('\n')
+                  lines.push(`[历史对话 ${ts}]`, convoText, '')
+
+                  ragContexts.push({
+                    kind: 'chat',
+                    createdAt: ts,
+                    score: item.score,
+                    tags: [],
+                    content: convoText,
+                  })
+                }
+              } catch (e) {
+                console.error(
+                  '[ApexMind] 加载会话原始对话用于 RAG 引用失败:',
+                  e,
+                )
+              }
+            }
           }
 
           contextText = lines.join('\n')

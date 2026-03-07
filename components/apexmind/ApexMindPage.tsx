@@ -16,6 +16,7 @@ import {
   Loader2,
   ChevronDown,
   ChevronUp,
+  Menu,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
@@ -104,6 +105,7 @@ export function ApexMindPage() {
     ragTimeWindowDays: "180",
     chatWeight: "0.5",
     useChatContexts: true,
+    chatSummaryPrompt: "",
     hasApiKey: false,
     models: [] as ModelConfig[],
   });
@@ -117,6 +119,7 @@ export function ApexMindPage() {
   const importFileInputRef = useRef<HTMLInputElement | null>(null);
   const planetImportFileInputRef = useRef<HTMLInputElement | null>(null);
   const messageListRef = useRef<HTMLDivElement | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // 初始化时加载通用时间线（记录模式条目 + 聊天消息），恢复上一次离开时的整体聊天区状态
   useEffect(() => {
@@ -205,6 +208,7 @@ export function ApexMindPage() {
           ragTimeWindowDays?: number | null;
           chatWeight?: number | null;
           useChatContexts?: boolean | null;
+          chatSummaryPrompt?: string;
           hasApiKey?: boolean;
           models?: any[] | null;
         };
@@ -263,6 +267,7 @@ export function ApexMindPage() {
             typeof s.useChatContexts === "boolean"
               ? s.useChatContexts
               : prev.useChatContexts,
+          chatSummaryPrompt: s.chatSummaryPrompt ?? prev.chatSummaryPrompt,
           hasApiKey: prev.hasApiKey || Boolean(s.hasApiKey),
           models: models.length > 0 ? models : prev.models,
         }));
@@ -642,6 +647,7 @@ export function ApexMindPage() {
         ragTimeWindowDays?: number | null;
         chatWeight?: number | null;
         useChatContexts?: boolean | null;
+        chatSummaryPrompt?: string;
         hasApiKey?: boolean;
         models?: any[] | null;
       };
@@ -694,6 +700,7 @@ export function ApexMindPage() {
             : "0.5",
         useChatContexts:
           typeof s.useChatContexts === "boolean" ? s.useChatContexts : true,
+        chatSummaryPrompt: s.chatSummaryPrompt ?? "",
         hasApiKey: prev.hasApiKey || Boolean((s as any).apiKey),
         apiKey: (s as any).apiKey ? String((s as any).apiKey) : "",
         models,
@@ -747,6 +754,10 @@ export function ApexMindPage() {
       }
 
       body.useChatContexts = settings.useChatContexts;
+
+      if (settings.chatSummaryPrompt.trim()) {
+        body.chatSummaryPrompt = settings.chatSummaryPrompt.trim();
+      }
 
       // 将前端模型列表同步到后端
       if (settings.models.length > 0) {
@@ -1140,27 +1151,47 @@ export function ApexMindPage() {
           <ArrowLeft size={14} />
           <span className="sr-only">首页</span>
         </button>
-        <div className="flex items-center gap-1.5">
-          <Sparkles size={15} className="text-zinc-900 dark:text-zinc-50" />
-          <span className="text-sm font-semibold tracking-tight">ApexMind</span>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="flex items-center gap-1.5">
+            <Sparkles size={15} className="text-zinc-900 dark:text-zinc-50" />
+            <span className="text-sm font-semibold tracking-tight">ApexMind</span>
+          </div>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="relative">
           <button
             type="button"
-            onClick={() => router.push("/apexmind/dashboard")}
+            onClick={() => setMobileMenuOpen((open) => !open)}
             className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-500 hover:text-zinc-800 hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
-            aria-label="数据后台"
+            aria-label="菜单"
           >
-            <Database size={14} />
+            <Menu size={15} />
           </button>
-          <button
-            type="button"
-            onClick={openSettings}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-500 hover:text-zinc-800 hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
-            aria-label="设置"
-          >
-            <Settings2 size={14} />
-          </button>
+          {mobileMenuOpen && (
+            <div className="absolute right-0 mt-2 w-32 rounded-lg border border-zinc-200 bg-white shadow-lg py-1 text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  router.push("/apexmind/dashboard");
+                }}
+                className="flex w-full items-center px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              >
+                <Database size={12} className="mr-2" />
+                <span>数据后台</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  openSettings();
+                }}
+                className="flex w-full items-center px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              >
+                <Settings2 size={12} className="mr-2" />
+                <span>设置</span>
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
@@ -1677,7 +1708,7 @@ export function ApexMindPage() {
 
               {/* 模式 / 模型 / 工具 / 发送 操作行（与输入框同一矩形内） */}
               <div className="flex items-center justify-between gap-2 pt-0.5 text-[11px]">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                   {/* 模式切换 */}
                   <button
                     type="button"
@@ -1744,7 +1775,7 @@ export function ApexMindPage() {
                   </AnimatePresence>
                 </div>
 
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
@@ -2169,6 +2200,23 @@ export function ApexMindPage() {
                         className="w-full rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-xs text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:ring-zinc-500"
                       />
                     </div>
+                    <div className="space-y-1.5">
+                      <label className="block text-zinc-500 dark:text-zinc-400">
+                        对话总结提示词
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={settings.chatSummaryPrompt}
+                        onChange={(e) =>
+                          setSettings((prev) => ({
+                            ...prev,
+                            chatSummaryPrompt: e.target.value,
+                          }))
+                        }
+                        placeholder="默认：你是一位擅长总结信息的助理。请阅读下面这一组对话记录，用简洁的中文总结出这段对话中最重要的 3-5 个要点（事件、决策、待办事项、结论），不要逐字复述原话，使用条列式输出。"
+                        className="w-full rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-xs text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:ring-zinc-500"
+                      />
+                    </div>
                   </div>
                 )}
 
@@ -2196,7 +2244,7 @@ export function ApexMindPage() {
                       disabled={importingPlanet}
                       className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-[11px] text-zinc-600 hover:border-zinc-300 hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-zinc-500 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {importingPlanet ? "导入中…" : "导入星球帖子"}
+                      {importingPlanet ? "导入中…" : "导入帖子"}
                     </button>
                     <button
                       type="button"

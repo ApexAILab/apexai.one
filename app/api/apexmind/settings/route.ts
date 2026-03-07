@@ -93,6 +93,7 @@ type SettingsInput = {
   ragTimeWindowDays?: number
   chatWeight?: number
   useChatContexts?: boolean
+  chatSummaryPrompt?: string
   models?: {
     id?: string
     name?: string
@@ -172,6 +173,10 @@ export async function PUT(request: Request) {
       data.useChatContexts = body.useChatContexts
     }
 
+    if (typeof body.chatSummaryPrompt === 'string') {
+      data.chatSummaryPrompt = body.chatSummaryPrompt.trim() || null
+    }
+
     // 多模型配置：写入 models 字段，并用默认模型同步顶层配置
     if (Array.isArray(body.models)) {
       const models = body.models
@@ -239,6 +244,7 @@ export async function PUT(request: Request) {
         ragTimeWindowDays: settings.ragTimeWindowDays,
         chatWeight: settings.chatWeight,
         useChatContexts: settings.useChatContexts,
+        chatSummaryPrompt: settings.chatSummaryPrompt,
         apiKey: settings.apiKeyEncrypted ?? null,
       },
     })
