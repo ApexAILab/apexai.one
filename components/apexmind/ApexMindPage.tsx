@@ -71,6 +71,7 @@ export function ApexMindPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsSaveError, setSettingsSaveError] = useState("");
   const [settings, setSettings] = useState({
     baseUrl: "",
     apiKey: "",
@@ -544,6 +545,7 @@ export function ApexMindPage() {
   // 打开设置时加载当前配置
   const openSettings = async () => {
     try {
+      setSettingsSaveError("");
       setSettingsOpen(true);
       setSettingsLoading(true);
       const res = await fetch("/api/apexmind/settings");
@@ -614,6 +616,7 @@ export function ApexMindPage() {
   const handleSaveSettings = async () => {
     try {
       setSettingsSaving(true);
+      setSettingsSaveError("");
 
       // 多模型配置下：Embedding API Key 必填
       if (settings.models.length > 0) {
@@ -662,13 +665,29 @@ export function ApexMindPage() {
           return out;
         });
       }
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 20000);
       const res = await fetch("/api/apexmind/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
       if (!res.ok) {
-        console.error("[ApexMind] 保存设置失败:", await res.text());
+        let errMsg = "";
+        try {
+          const text = await res.text();
+          try {
+            const errData = JSON.parse(text);
+            errMsg = typeof errData?.error === "string" ? errData.error : text || `请求失败 ${res.status}`;
+          } catch {
+            errMsg = text || `请求失败 ${res.status}`;
+          }
+        } catch {
+          errMsg = `请求失败 ${res.status}`;
+        }
+        setSettingsSaveError(errMsg);
         return;
       }
       const data = await res.json();
@@ -679,8 +698,15 @@ export function ApexMindPage() {
           apiKey: "",
         }));
         setSettingsOpen(false);
+      } else {
+        setSettingsSaveError((data && typeof data.error === "string") ? data.error : "保存失败");
       }
     } catch (error) {
+      const isAbort = error instanceof Error && error.name === "AbortError";
+      const msg = isAbort
+        ? "请求超时，请检查网络或生产环境配置（如 DATABASE_URL、AUTH_SECRET）"
+        : (error instanceof Error ? error.message : "网络错误，请稍后重试");
+      setSettingsSaveError(msg);
       console.error("[ApexMind] 保存设置异常:", error);
     } finally {
       setSettingsSaving(false);
@@ -1810,6 +1836,11 @@ export function ApexMindPage() {
                       {purging ? "清空中…" : "清空数据"}
                     </button>
                   </div>
+                  {settingsSaveError && (
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[11px] text-red-700 dark:border-red-800 dark:bg-red-950/50 dark:text-red-300">
+                      {settingsSaveError}
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 text-[11px]">
                     <button
                       type="button"

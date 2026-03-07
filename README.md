@@ -98,6 +98,22 @@ npm run build
 npm start
 ```
 
+### 生产环境部署（Vercel / 自建等）
+
+**重要：** 项目中的 `.env` 文件已被 `.gitignore` 忽略，**不会随代码提交到 GitHub**。因此：
+
+- **本地开发**：在项目根目录创建 `.env` 并配置 `DATABASE_URL`、`AUTH_SECRET` 等，`npm run dev` 会读取。
+- **线上环境**：必须在部署平台里单独配置环境变量，否则接口（如登录、ApexMind 保存设置）会失败或超时。
+
+在 **Vercel** 中：
+1. 打开项目 → **Settings** → **Environment Variables**
+2. 添加 `DATABASE_URL`（生产用数据库连接串）
+3. 添加 `AUTH_SECRET`（与本地不同的强随机密钥，可用 `openssl rand -base64 32` 生成）
+4. 如有使用 `DIRECT_URL`（Prisma 直连），也需添加
+5. 保存后重新部署
+
+若保存设置一直显示「保存中」或重新打开后数据丢失，多半是生产环境未配置上述变量或数据库不可达，请按上述步骤检查并在设置弹窗中查看具体错误提示。
+
 ## 📁 项目结构
 
 ```
