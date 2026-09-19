@@ -1,0 +1,123 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+  schemas  = ["apex_v2"]
+}
+
+model User {
+  id                 String       @id @default(cuid())
+  username           String
+  usernameNormalized String       @unique
+  passwordHash       String
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  sessions           Session[]
+  thoughts           Thought[]
+  tags               Tag[]
+  images             ImageAsset[]
+
+  @@map("users")
+  @@schema("apex_v2")
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  tokenHash  String   @unique
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+  @@schema("apex_v2")
+}
+
+model Thought {
+  id                String       @id @default(cuid())
+  userId            String
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content           String       @db.Text
+  occurredAt        DateTime     @default(now())
+  sourceFingerprint String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  tags              ThoughtTag[]
+  images            ImageAsset[]
+
+  @@unique([userId, sourceFingerprint])
+  @@index([userId, occurredAt(sort: Desc)])
+  @@map("thoughts")
+  @@schema("apex_v2")
+}
+
+model Tag {
+  id             String       @id @default(cuid())
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name           String
+  normalizedName String
+  createdAt      DateTime     @default(now())
+  thoughts       ThoughtTag[]
+
+  @@unique([userId, normalizedName])
+  @@index([userId, name])
+  @@map("tags")
+  @@schema("apex_v2")
+}
+
+model ThoughtTag {
+  thoughtId String
+  tagId     String
+  thought   Thought @relation(fields: [thoughtId], references: [id], onDelete: Cascade)
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([thoughtId, tagId])
+  @@index([tagId])
+  @@map("thought_tags")
+  @@schema("apex_v2")
+}
+
+model ImageAsset {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  thoughtId String?
+  thought   Thought?  @relation(fields: [thoughtId], references: [id], onDelete: Cascade)
+  url       String    @db.Text
+  pathname  String    @db.Text
+  width     Int
+  height    Int
+  bytes     Int
+  mimeType  String
+  sortOrder Int       @default(0)
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
+  @@index([thoughtId, sortOrder])
+  @@map("image_assets")
+  @@schema("apex_v2")
+}
+
+model RateLimitBucket {
+  id          String   @id @default(cuid())
+  keyHash     String
+  action      String
+  windowStart DateTime
+  count       Int      @default(1)
+  blockedUntil DateTime?
+  updatedAt   DateTime @updatedAt
+
+  @@unique([keyHash, action])
+  @@index([updatedAt])
+  @@map("rate_limit_buckets")
+  @@schema("apex_v2")
+}
