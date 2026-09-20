@@ -110,13 +110,6 @@ export function Composer({ hasThoughtToday, onCreated, onError }: ComposerProps)
 
   return (
     <form className="composer-card glass-card" onSubmit={handleSubmit}>
-      <div
-        className={`composer-today ${hasThoughtToday ? "is-complete" : ""}`}
-        aria-label={hasThoughtToday ? "今天已发布想法" : "今天还没有发布想法"}
-      >
-        <span>{todayLabel()}</span>
-        <i aria-hidden="true"><Check /></i>
-      </div>
       <textarea
         ref={textareaRef}
         value={content}
@@ -149,15 +142,24 @@ export function Composer({ hasThoughtToday, onCreated, onError }: ComposerProps)
             onChange={handleFiles}
           />
         </div>
-        <button
-          className="publish-button"
-          type="submit"
-          aria-label="发布想法"
-          title="发布想法"
-          disabled={(!content.trim() && !images.length) || uploading || submitting}
-        >
-          {submitting ? <LoaderCircle className="spin" aria-hidden="true" /> : <ArrowUp aria-hidden="true" />}
-        </button>
+        <div className="composer-submit-group">
+          <div
+            className={`composer-today ${hasThoughtToday ? "is-complete" : ""}`}
+            aria-label={hasThoughtToday ? "今天已发布想法" : "今天还没有发布想法"}
+          >
+            <span>{todayLabel()}</span>
+            <i aria-hidden="true"><Check /></i>
+          </div>
+          <button
+            className="publish-button"
+            type="submit"
+            aria-label="发布想法"
+            title="发布想法"
+            disabled={(!content.trim() && !images.length) || uploading || submitting}
+          >
+            {submitting ? <LoaderCircle className="spin" aria-hidden="true" /> : <ArrowUp aria-hidden="true" />}
+          </button>
+        </div>
       </div>
     </form>
   );

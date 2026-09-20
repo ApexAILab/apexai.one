@@ -283,7 +283,7 @@
     width: 100%;
     min-height: 84px;
     max-height: 280px;
-    padding: 28px 2px 12px;
+    padding: 2px 2px 12px;
     border: 0;
     outline: 0;
     resize: none;
@@ -295,37 +295,27 @@
   }
   .composer-card > textarea::placeholder { font-size: 15px; }
   .composer-today {
-    position: absolute;
-    top: 16px;
-    right: 20px;
-    z-index: 1;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
     color: var(--faint);
     font-size: 12px;
     font-variant-numeric: tabular-nums;
-    pointer-events: none;
   }
   .composer-today i {
-    width: 15px;
-    height: 15px;
+    width: 16px;
+    height: 16px;
     display: grid;
     place-items: center;
-    border-radius: 50%;
-    border: 0;
-    background: color-mix(in srgb, var(--faint) 18%, var(--surface));
     color: var(--faint);
-    transition: color .18s ease, background .18s ease;
+    transition: color .18s ease;
   }
-  .composer-today i svg { width: 10px; height: 10px; stroke-width: 2.4; }
+  .composer-today i svg { width: 15px; height: 15px; stroke-width: 3; }
   .composer-today.is-complete { color: #557d60; }
-  .composer-today.is-complete i {
-    background: #9bcaa6;
-    color: #315c3b;
-  }
+  .composer-today.is-complete i { color: #3f724b; }
   .composer-footer { min-height: 42px; margin-top: 5px; display: flex; align-items: center; justify-content: space-between; }
   .composer-tools { display: flex; gap: 3px; }
+  .composer-submit-group { display: flex; align-items: center; gap: 9px; }
   .composer-tools > button {
     width: 38px;
     height: 38px;
@@ -532,9 +522,8 @@
     .mind-main { min-height: calc(100dvh - 57px - env(safe-area-inset-top)); padding: 1px 13px max(64px, calc(env(safe-area-inset-bottom) + 44px)); }
     .mind-ambient { width: 130vw; height: 330px; top: 35px; }
     .composer-card { margin-top: 22px; padding: 16px 15px 10px; border-radius: 15px; }
-    .composer-card > textarea { min-height: 91px; padding: 26px 1px 10px; font-size: 16px; line-height: 1.68; }
+    .composer-card > textarea { min-height: 91px; padding: 1px 1px 10px; font-size: 16px; line-height: 1.68; }
     .composer-card > textarea::placeholder { font-size: 14px; }
-    .composer-today { top: 14px; right: 15px; }
     .composer-tools > button { width: 37px; height: 37px; }
     .publish-button { width: 26px; height: 26px; }
     .thought-filters { margin-top: 13px; }
