@@ -232,10 +232,10 @@
   .auth-switch { margin: 21px 0 0; color: var(--muted); font-size: 13px; text-align: center; }
   .auth-switch a { color: var(--foreground); }
   .auth-note { margin: 14px 0 0; color: var(--faint); font-size: 11px; text-align: center; }
-  .account-content { width: min(100%, 300px); margin: auto; text-align: center; }
-  .account-content h1 { font-size: 23px; font-weight: 520; }
-  .account-card { margin-top: 24px; padding: 7px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--glass); box-shadow: var(--shadow-card); backdrop-filter: blur(24px) saturate(1.12); }
-  .account-card > div { min-height: 54px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+  .account-content { width: min(100%, 210px); margin: auto; padding: 21px 16px 8px; border: 1px solid var(--line); border-radius: 14px; background: var(--glass); box-shadow: var(--shadow-card); backdrop-filter: blur(24px) saturate(1.12); }
+  .account-content h1 { font-size: 20px; font-weight: 520; }
+  .account-card { margin-top: 17px; padding: 0; border-top: 1px solid var(--line); }
+  .account-card > div { min-height: 51px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
   .account-card span { color: var(--muted); font-size: 14px; }
   .account-card strong { font-size: 14px; font-weight: 500; }
   .account-card button { width: 100%; min-height: 48px; border-top: 1px solid var(--line); background: transparent; color: var(--danger); display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; }
@@ -340,8 +340,8 @@
   .composer-tools > button:hover, .composer-tools > button.is-active { background: var(--soft); color: var(--foreground); }
   .composer-tools svg { width: 19px; height: 19px; stroke-width: 1.7; }
   .publish-button {
-    width: 38px;
-    height: 38px;
+    width: 26px;
+    height: 26px;
     padding: 0;
     border-radius: 50%;
     display: grid;
@@ -354,7 +354,7 @@
   :root[data-theme="dark"] .publish-button { background: linear-gradient(145deg, #eee, #c9c9c3); color: #151514; }
   .publish-button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 19px rgba(22, 22, 20, .19), inset 0 1px rgba(255,255,255,.15); }
   .publish-button:disabled { opacity: .18; box-shadow: none; }
-  .publish-button svg { width: 18px; height: 18px; stroke-width: 1.8; }
+  .publish-button svg { width: 14px; height: 14px; stroke-width: 1.9; }
   .stream-divider { height: 1px; margin: 13px 2px 8px; background: var(--line); }
   .thought-stream { display: grid; gap: 0; }
   .thought-card { padding: 13px 2px 15px; }
@@ -536,7 +536,7 @@
     .composer-card > textarea::placeholder { font-size: 14px; }
     .composer-today { top: 14px; right: 15px; }
     .composer-tools > button { width: 37px; height: 37px; }
-    .publish-button { width: 37px; height: 37px; }
+    .publish-button { width: 25px; height: 25px; }
     .thought-filters { margin-top: 13px; }
     .stream-divider { margin: 10px 2px 6px; }
     .thought-card { padding: 12px 2px 14px; }
