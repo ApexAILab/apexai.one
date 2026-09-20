@@ -1,30 +1,20 @@
 "use client";
 
-import { ArrowUp, Check, Image as ImageIcon, LoaderCircle, Tag } from "lucide-react";
+import { ArrowUp, Image as ImageIcon, LoaderCircle, Tag } from "lucide-react";
 import { ChangeEvent, FormEvent, KeyboardEvent, useRef, useState } from "react";
 import { TagInput } from "@/components/apexmind/TagInput";
 import { ImageGrid } from "@/components/apexmind/ImageGrid";
 import { requestJson } from "@/lib/api-client";
-import { CHINA_TIME_ZONE, MAX_IMAGES_PER_THOUGHT } from "@/lib/constants";
+import { MAX_IMAGES_PER_THOUGHT } from "@/lib/constants";
 import { uploadImage } from "@/lib/image-upload";
 import type { ImageAssetDto, ThoughtDto } from "@/types/api";
 
 type ComposerProps = {
-  hasThoughtToday: boolean;
   onCreated: (thought: ThoughtDto) => void;
   onError: (message: string) => void;
 };
 
-function todayLabel() {
-  return new Intl.DateTimeFormat("zh-CN", {
-    timeZone: CHINA_TIME_ZONE,
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-  }).format(new Date());
-}
-
-export function Composer({ hasThoughtToday, onCreated, onError }: ComposerProps) {
+export function Composer({ onCreated, onError }: ComposerProps) {
   const [content, setContent] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [images, setImages] = useState<ImageAssetDto[]>([]);
@@ -142,24 +132,15 @@ export function Composer({ hasThoughtToday, onCreated, onError }: ComposerProps)
             onChange={handleFiles}
           />
         </div>
-        <div className="composer-submit-group">
-          <div
-            className={`composer-today ${hasThoughtToday ? "is-complete" : ""}`}
-            aria-label={hasThoughtToday ? "今天已发布想法" : "今天还没有发布想法"}
-          >
-            <span>{todayLabel()}</span>
-            <i aria-hidden="true"><Check /></i>
-          </div>
-          <button
-            className="publish-button"
-            type="submit"
-            aria-label="发布想法"
-            title="发布想法"
-            disabled={(!content.trim() && !images.length) || uploading || submitting}
-          >
-            {submitting ? <LoaderCircle className="spin" aria-hidden="true" /> : <ArrowUp aria-hidden="true" />}
-          </button>
-        </div>
+        <button
+          className="publish-button"
+          type="submit"
+          aria-label="发布想法"
+          title="发布想法"
+          disabled={(!content.trim() && !images.length) || uploading || submitting}
+        >
+          {submitting ? <LoaderCircle className="spin" aria-hidden="true" /> : <ArrowUp aria-hidden="true" />}
+        </button>
       </div>
     </form>
   );
