@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/auth";
 export const metadata: Metadata = { title: "ApexMind" };
 
 export default async function ApexMindPage() {
-  if (!(await getCurrentUser())) redirect("/login");
-  return <ApexMindApp />;
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  return <ApexMindApp userId={user.id} />;
 }

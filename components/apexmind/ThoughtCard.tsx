@@ -9,17 +9,18 @@ import type { ThoughtDto } from "@/types/api";
 
 type ThoughtCardProps = {
   thought: ThoughtDto;
+  userId: string;
   onUpdated: (thought: ThoughtDto) => void;
   onDeleted: (id: string) => void;
   onTagClick: (tag: string) => void;
   onError: (message: string) => void;
 };
 
-export function ThoughtCard({ thought, onUpdated, onDeleted, onTagClick, onError }: ThoughtCardProps) {
+export function ThoughtCard({ thought, userId, onUpdated, onDeleted, onTagClick, onError }: ThoughtCardProps) {
   const [editing, setEditing] = useState(false);
 
   return (
-    <article className="thought-card glass-card">
+    <article className="thought-card">
       <header className="thought-meta">
         <time dateTime={thought.occurredAt}>{formatThoughtTime(thought.occurredAt)}</time>
         <button type="button" aria-label="编辑想法" title="编辑想法" onClick={() => setEditing(true)}>
@@ -38,6 +39,7 @@ export function ThoughtCard({ thought, onUpdated, onDeleted, onTagClick, onError
       <EditThoughtModal
         key={`${thought.id}-${thought.updatedAt}`}
         thought={thought}
+        userId={userId}
         open={editing}
         onClose={() => setEditing(false)}
         onUpdated={onUpdated}

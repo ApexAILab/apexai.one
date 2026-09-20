@@ -2,6 +2,7 @@
 
 import { ChevronLeft, ChevronRight, Download, LoaderCircle, Trash2, Upload } from "lucide-react";
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { IconButton } from "@/components/ui/IconButton";
 import { requestJson } from "@/lib/api-client";
@@ -32,8 +33,34 @@ function shiftMonth(month: string, delta: number) {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
+type KeywordScope = StatsDto["keywordScope"];
+
+function wordCloudStyle(index: number, count: number, maxCount: number, total: number): CSSProperties {
+  if (index === 0) {
+    return { left: "50%", top: "52%", fontSize: "29px", opacity: 1, zIndex: total + 1 };
+  }
+
+  const innerRing = index <= 8;
+  const ringIndex = innerRing ? index - 1 : index - 9;
+  const ringTotal = innerRing ? Math.min(8, Math.max(1, total - 1)) : Math.max(1, total - 9);
+  const angle = -Math.PI / 2 + (ringIndex / ringTotal) * Math.PI * 2;
+  const radiusX = innerRing ? 31 : 45;
+  const radiusY = innerRing ? 29 : 43;
+  const strength = Math.sqrt(count / Math.max(1, maxCount));
+  const fontSize = innerRing ? 13 + strength * 8 : 10.5 + strength * 5;
+
+  return {
+    left: `${50 + Math.cos(angle) * radiusX}%`,
+    top: `${52 + Math.sin(angle) * radiusY}%`,
+    fontSize: `${fontSize}px`,
+    opacity: innerRing ? 0.64 + strength * 0.28 : 0.45 + strength * 0.3,
+    zIndex: total - index,
+  };
+}
+
 export function StatsPanel({ open, onClose, onNotify, onDataChanged }: StatsPanelProps) {
   const [month, setMonth] = useState(currentMonth);
+  const [keywordScope, setKeywordScope] = useState<KeywordScope>("month");
   const [data, setData] = useState<StatsDto | null>(null);
   const [error, setError] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
@@ -44,7 +71,7 @@ export function StatsPanel({ open, onClose, onNotify, onDataChanged }: StatsPane
   useEffect(() => {
     if (!open) return;
     let active = true;
-    requestJson<StatsDto>(`/api/stats?month=${month}`)
+    requestJson<StatsDto>(`/api/stats?month=${month}&keywordScope=${keywordScope}`)
       .then((result) => {
         if (active) setData(result);
       })
@@ -52,7 +79,7 @@ export function StatsPanel({ open, onClose, onNotify, onDataChanged }: StatsPane
         if (active) setError(reason instanceof Error ? reason.message : "统计数据加载失败");
       });
     return () => { active = false; };
-  }, [open, month, refreshKey]);
+  }, [open, month, keywordScope, refreshKey]);
 
   async function responseError(response: Response, fallback: string) {
     try {
@@ -197,10 +224,38 @@ export function StatsPanel({ open, onClose, onNotify, onDataChanged }: StatsPane
           </section>
 
           <section className="word-cloud-section" aria-label="词云">
+            <div className="word-cloud-heading">
+              <span>高频词</span>
+              <div className="scope-switcher" aria-label="高频词时间范围">
+                {([
+                  ["month", "月"],
+                  ["year", "年"],
+                  ["all", "全部"],
+                ] as const).map(([scope, label]) => (
+                  <button
+                    type="button"
+                    key={scope}
+                    className={keywordScope === scope ? "is-active" : ""}
+                    aria-pressed={keywordScope === scope}
+                    onClick={() => {
+                      setError("");
+                      setData(null);
+                      setKeywordScope(scope);
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
             {data?.wordCloud.length ? (
               <div className="word-cloud">
-                {data.wordCloud.map((item) => (
-                  <span key={item.text} style={{ fontSize: `${12 + (item.count / maxKeyword) * 14}px`, opacity: 0.48 + (item.count / maxKeyword) * 0.52 }}>
+                {data.wordCloud.map((item, index) => (
+                  <span
+                    key={item.text}
+                    style={wordCloudStyle(index, item.count, maxKeyword, data.wordCloud.length)}
+                    title={`${item.text} · ${item.count} 次`}
+                  >
                     {item.text}
                   </span>
                 ))}

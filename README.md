@@ -8,7 +8,7 @@ APEXAI is a product shell for focused tools. Its first product, ApexMind, is a c
 - Thought capture with tags and up to nine images
 - Full editing of content, time, tags, and images
 - Keyword search and tag filtering
-- Monthly binary activity calendar, current streak, total thoughts, total words, and word cloud
+- Monthly binary activity calendar, current streak, total thoughts, total words, and month/year/all-time semantic word cloud
 - Responsive desktop/iPhone UI, dark mode, and an installable web-app manifest
 - Permanent deletion with explicit confirmation
 

@@ -6,14 +6,16 @@ import { TagInput } from "@/components/apexmind/TagInput";
 import { ImageGrid } from "@/components/apexmind/ImageGrid";
 import { requestJson } from "@/lib/api-client";
 import { MAX_IMAGES_PER_THOUGHT } from "@/lib/constants";
+import { uploadImage } from "@/lib/image-upload";
 import type { ImageAssetDto, ThoughtDto } from "@/types/api";
 
 type ComposerProps = {
+  userId: string;
   onCreated: (thought: ThoughtDto) => void;
   onError: (message: string) => void;
 };
 
-export function Composer({ onCreated, onError }: ComposerProps) {
+export function Composer({ userId, onCreated, onError }: ComposerProps) {
   const [content, setContent] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [images, setImages] = useState<ImageAssetDto[]>([]);
@@ -30,12 +32,6 @@ export function Composer({ onCreated, onError }: ComposerProps) {
     node.style.height = `${Math.min(node.scrollHeight, 280)}px`;
   }
 
-  async function uploadFile(file: File) {
-    const form = new FormData();
-    form.append("file", file);
-    return requestJson<ImageAssetDto>("/api/images", { method: "POST", body: form });
-  }
-
   async function handleFiles(event: ChangeEvent<HTMLInputElement>) {
     const files = [...(event.target.files ?? [])];
     event.target.value = "";
@@ -48,7 +44,7 @@ export function Composer({ onCreated, onError }: ComposerProps) {
     setUploading(true);
     try {
       const uploaded: ImageAssetDto[] = [];
-      for (const file of files) uploaded.push(await uploadFile(file));
+      for (const file of files) uploaded.push(await uploadImage(file, userId));
       setImages((current) => [...current, ...uploaded]);
     } catch (reason) {
       onError(reason instanceof Error ? reason.message : "图片上传失败");

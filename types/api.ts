@@ -19,6 +19,7 @@ export type ThoughtDto = {
 
 export type StatsDto = {
   month: string;
+  keywordScope: "month" | "year" | "all";
   totalThoughts: number;
   totalWords: number;
   currentStreak: number;

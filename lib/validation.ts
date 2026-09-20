@@ -60,6 +60,7 @@ export const statsQuerySchema = z.object({
   month: z
     .string()
     .regex(/^\d{4}-(0[1-9]|1[0-2])$/, "月份格式应为 YYYY-MM"),
+  keywordScope: z.enum(["month", "year", "all"]).default("month"),
 });
 
 export function uniqueTags(tags: string[]) {

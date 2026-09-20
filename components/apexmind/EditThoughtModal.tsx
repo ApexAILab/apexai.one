@@ -8,10 +8,12 @@ import { ImageGrid } from "@/components/apexmind/ImageGrid";
 import { requestJson } from "@/lib/api-client";
 import { chinaLocalInputToIso, toDatetimeLocalValue } from "@/lib/time";
 import { MAX_IMAGES_PER_THOUGHT } from "@/lib/constants";
+import { uploadImage } from "@/lib/image-upload";
 import type { ImageAssetDto, ThoughtDto } from "@/types/api";
 
 type EditThoughtModalProps = {
   thought: ThoughtDto;
+  userId: string;
   open: boolean;
   onClose: () => void;
   onUpdated: (thought: ThoughtDto) => void;
@@ -19,7 +21,7 @@ type EditThoughtModalProps = {
   onError: (message: string) => void;
 };
 
-export function EditThoughtModal({ thought, open, onClose, onUpdated, onDeleted, onError }: EditThoughtModalProps) {
+export function EditThoughtModal({ thought, userId, open, onClose, onUpdated, onDeleted, onError }: EditThoughtModalProps) {
   const [content, setContent] = useState(thought.content);
   const [tags, setTags] = useState(thought.tags);
   const [images, setImages] = useState(thought.images);
@@ -40,9 +42,7 @@ export function EditThoughtModal({ thought, open, onClose, onUpdated, onDeleted,
     try {
       const next: ImageAssetDto[] = [];
       for (const file of files) {
-        const form = new FormData();
-        form.append("file", file);
-        next.push(await requestJson<ImageAssetDto>("/api/images", { method: "POST", body: form }));
+        next.push(await uploadImage(file, userId));
       }
       setImages((current) => [...current, ...next]);
     } catch (reason) {

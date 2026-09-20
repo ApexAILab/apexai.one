@@ -34,6 +34,21 @@ describe("keyword extraction", () => {
     expect(keywords[0]).toEqual({ text: "product", count: 3 });
     expect(keywords[1]).toEqual({ text: "clarity", count: 2 });
   });
+
+  it("keeps meaningful Chinese phrases and removes numeric or generic fragments", () => {
+    const keywords = extractKeywords([
+      "产品开发是这个月份复盘总结的重心，2026 年做了很多的事情。",
+      "继续产品开发，复盘总结产品方向。",
+      "产品开发要服务真实用户。",
+    ]);
+    const terms = keywords.map((item) => item.text);
+
+    expect(terms[0]).toBe("产品开发");
+    expect(terms).toContain("复盘总结");
+    expect(terms).not.toContain("2026");
+    expect(terms).not.toContain("事情");
+    expect(terms.every((term) => !/\d/u.test(term))).toBe(true);
+  });
 });
 
 describe("daysInMonth", () => {

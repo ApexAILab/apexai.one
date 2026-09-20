@@ -10,7 +10,6 @@ import { Composer } from "@/components/apexmind/Composer";
 import { ThoughtCard } from "@/components/apexmind/ThoughtCard";
 import { StatsPanel } from "@/components/apexmind/StatsPanel";
 import { requestJson } from "@/lib/api-client";
-import { toChinaDayKey } from "@/lib/time";
 import type { ThoughtDto } from "@/types/api";
 
 type ThoughtListResponse = {
@@ -21,7 +20,7 @@ type ThoughtListResponse = {
 type TagSummary = { name: string; count: number };
 const IMAGE_FILTER = "__images__";
 
-export function ApexMindApp() {
+export function ApexMindApp({ userId }: { userId: string }) {
   const [thoughts, setThoughts] = useState<ThoughtDto[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -151,7 +150,7 @@ export function ApexMindApp() {
             </section>
           ) : null}
 
-          <Composer onCreated={handleCreated} onError={notify} />
+          <Composer userId={userId} onCreated={handleCreated} onError={notify} />
           <nav className="thought-filters" aria-label="筛选想法">
             <button type="button" className={!selectedFilter ? "is-active" : ""} onClick={() => setSelectedFilter("")}>全部</button>
             {tags.map((tag) => (
@@ -169,22 +168,17 @@ export function ApexMindApp() {
             {loading && !thoughts.length ? (
               <div className="stream-status"><LoaderCircle className="spin" aria-hidden="true" /> 正在加载…</div>
             ) : thoughts.length ? (
-              thoughts.map((thought, index) => {
-                const previous = thoughts[index - 1];
-                const differentDay = previous && toChinaDayKey(previous.occurredAt) !== toChinaDayKey(thought.occurredAt);
-                return (
-                  <div key={thought.id}>
-                    {differentDay ? <div className="date-separator" aria-hidden="true" /> : null}
-                    <ThoughtCard
-                      thought={thought}
-                      onUpdated={handleUpdated}
-                      onDeleted={handleDeleted}
-                      onTagClick={(tag) => setSelectedFilter(tag)}
-                      onError={notify}
-                    />
-                  </div>
-                );
-              })
+              thoughts.map((thought) => (
+                <ThoughtCard
+                  key={thought.id}
+                  thought={thought}
+                  userId={userId}
+                  onUpdated={handleUpdated}
+                  onDeleted={handleDeleted}
+                  onTagClick={(tag) => setSelectedFilter(tag)}
+                  onError={notify}
+                />
+              ))
             ) : (
               <div className="empty-state">
                 <BrandMark />
