@@ -18,6 +18,7 @@ type ComposerProps = {
 function todayLabel() {
   return new Intl.DateTimeFormat("zh-CN", {
     timeZone: CHINA_TIME_ZONE,
+    year: "numeric",
     month: "numeric",
     day: "numeric",
   }).format(new Date());

@@ -118,6 +118,16 @@ export async function POST(request: Request) {
     }
     assertImportable(records);
 
+    const imageUrls = [...new Set(records.flatMap((record) => record.imageUrls))];
+    const { results: metadata, unavailable } = await inspectImages(imageUrls);
+    if (unavailable.size) {
+      throw new ApiError(
+        400,
+        `Markdown 中有 ${unavailable.size} 张图片无法访问，请先修复图片链接后重试`,
+        "IMAGE_UNAVAILABLE",
+      );
+    }
+
     const created = await prisma.thought.createMany({
       data: records.map((record) => ({
         userId: user.id,
@@ -164,11 +174,6 @@ export async function POST(request: Request) {
       select: { thoughtId: true, url: true },
     });
     const existing = new Set(existingImages.map((image) => `${image.thoughtId}\u0000${image.url}`));
-    const missingUrls = [...new Set(records.flatMap((record) => {
-      const thoughtId = thoughtByFingerprint.get(record.sourceFingerprint);
-      return thoughtId ? record.imageUrls.filter((url) => !existing.has(`${thoughtId}\u0000${url}`)) : [];
-    }))];
-    const { results: metadata, unavailable } = await inspectImages(missingUrls);
     const images = records.flatMap((record) => {
       const thoughtId = thoughtByFingerprint.get(record.sourceFingerprint);
       if (!thoughtId) return [];
@@ -185,7 +190,7 @@ export async function POST(request: Request) {
       imported: created.count,
       skipped: records.length - created.count,
       images: images.length,
-      unavailableImages: unavailable.size,
+      unavailableImages: 0,
     });
   } catch (error) {
     return handleApiError(error);

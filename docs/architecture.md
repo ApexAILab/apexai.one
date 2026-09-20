@@ -11,7 +11,7 @@ The current code is intentionally a single Next.js application. Product-specific
 1. Server pages resolve the current session from an opaque, HTTP-only cookie.
 2. Client interactions call same-origin route handlers under `app/api`.
 3. Zod validates all external input before Prisma writes to PostgreSQL.
-4. Images are sent as same-origin multipart form data. The server validates the file, reads its dimensions with Sharp, writes the original bytes to the signed-in user's Vercel Blob path, and then creates the owned database row.
+4. Images are sent as same-origin multipart form data. The server validates the file, reads its dimensions with Sharp, writes the original bytes to the signed-in user's Vercel Blob path, and then creates the owned database row. Markdown imports validate every referenced image before writing any thoughts, so a broken image URL fails the import instead of silently dropping images.
 5. Every thought, tag, and image query is scoped by `userId`.
 
 The new models live in the PostgreSQL schema `apex_v2`. This isolates the rebuilt product from the legacy tables during verification and makes the cutover reversible.
