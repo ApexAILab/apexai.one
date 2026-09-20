@@ -31,7 +31,7 @@ export function AuthForm({ mode }: AuthFormProps) {
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error?.message || "操作失败，请重试");
-      router.replace("/apexmind");
+      router.replace(isRegister ? "/apexmind" : "/");
       router.refresh();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "操作失败，请重试");

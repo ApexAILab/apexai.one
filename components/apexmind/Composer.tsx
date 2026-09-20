@@ -115,7 +115,7 @@ export function Composer({ hasThoughtToday, onCreated, onError }: ComposerProps)
         aria-label={hasThoughtToday ? "今天已发布想法" : "今天还没有发布想法"}
       >
         <span>{todayLabel()}</span>
-        <i aria-hidden="true">{hasThoughtToday ? <Check /> : null}</i>
+        <i aria-hidden="true"><Check /></i>
       </div>
       <textarea
         ref={textareaRef}
