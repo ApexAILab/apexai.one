@@ -283,7 +283,7 @@
     width: 100%;
     min-height: 84px;
     max-height: 280px;
-    padding: 2px 122px 12px 2px;
+    padding: 28px 2px 12px;
     border: 0;
     outline: 0;
     resize: none;
@@ -532,7 +532,7 @@
     .mind-main { min-height: calc(100dvh - 57px - env(safe-area-inset-top)); padding: 1px 13px max(64px, calc(env(safe-area-inset-bottom) + 44px)); }
     .mind-ambient { width: 130vw; height: 330px; top: 35px; }
     .composer-card { margin-top: 22px; padding: 16px 15px 10px; border-radius: 15px; }
-    .composer-card > textarea { min-height: 91px; padding-right: 112px; font-size: 16px; line-height: 1.68; }
+    .composer-card > textarea { min-height: 91px; padding: 26px 1px 10px; font-size: 16px; line-height: 1.68; }
     .composer-card > textarea::placeholder { font-size: 14px; }
     .composer-today { top: 14px; right: 15px; }
     .composer-tools > button { width: 37px; height: 37px; }
