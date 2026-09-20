@@ -340,8 +340,8 @@
   .composer-tools > button:hover, .composer-tools > button.is-active { background: var(--soft); color: var(--foreground); }
   .composer-tools svg { width: 19px; height: 19px; stroke-width: 1.7; }
   .publish-button {
-    width: 26px;
-    height: 26px;
+    width: 28px;
+    height: 28px;
     padding: 0;
     border-radius: 50%;
     display: grid;
@@ -536,7 +536,7 @@
     .composer-card > textarea::placeholder { font-size: 14px; }
     .composer-today { top: 14px; right: 15px; }
     .composer-tools > button { width: 37px; height: 37px; }
-    .publish-button { width: 25px; height: 25px; }
+    .publish-button { width: 26px; height: 26px; }
     .thought-filters { margin-top: 13px; }
     .stream-divider { margin: 10px 2px 6px; }
     .thought-card { padding: 12px 2px 14px; }
