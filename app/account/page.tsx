@@ -13,7 +13,7 @@ export default async function AccountPage() {
   return (
     <main className="account-page">
       <Link href="/" className="auth-brand"><BrandMark /><strong>APEXAI</strong></Link>
-      <div className="account-content"><span>Account</span><h1>账户</h1><AccountPanel username={user.username} /></div>
+      <div className="account-content"><h1>账户</h1><AccountPanel username={user.username} /></div>
     </main>
   );
 }

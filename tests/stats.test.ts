@@ -49,6 +49,15 @@ describe("keyword extraction", () => {
     expect(terms).not.toContain("事情");
     expect(terms.every((term) => !/\d/u.test(term))).toBe(true);
   });
+
+  it("keeps English words and counts their original casing separately", () => {
+    const keywords = extractKeywords(["AI ai YouTube youtube AI"], 10);
+
+    expect(keywords).toContainEqual({ text: "AI", count: 2 });
+    expect(keywords).toContainEqual({ text: "ai", count: 1 });
+    expect(keywords).toContainEqual({ text: "YouTube", count: 1 });
+    expect(keywords).toContainEqual({ text: "youtube", count: 1 });
+  });
 });
 
 describe("daysInMonth", () => {

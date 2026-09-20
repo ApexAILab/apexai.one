@@ -13,7 +13,6 @@ import type { ImageAssetDto, ThoughtDto } from "@/types/api";
 
 type EditThoughtModalProps = {
   thought: ThoughtDto;
-  userId: string;
   open: boolean;
   onClose: () => void;
   onUpdated: (thought: ThoughtDto) => void;
@@ -21,7 +20,7 @@ type EditThoughtModalProps = {
   onError: (message: string) => void;
 };
 
-export function EditThoughtModal({ thought, userId, open, onClose, onUpdated, onDeleted, onError }: EditThoughtModalProps) {
+export function EditThoughtModal({ thought, open, onClose, onUpdated, onDeleted, onError }: EditThoughtModalProps) {
   const [content, setContent] = useState(thought.content);
   const [tags, setTags] = useState(thought.tags);
   const [images, setImages] = useState(thought.images);
@@ -42,7 +41,7 @@ export function EditThoughtModal({ thought, userId, open, onClose, onUpdated, on
     try {
       const next: ImageAssetDto[] = [];
       for (const file of files) {
-        next.push(await uploadImage(file, userId));
+        next.push(await uploadImage(file));
       }
       setImages((current) => [...current, ...next]);
     } catch (reason) {

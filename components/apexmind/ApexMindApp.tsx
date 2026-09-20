@@ -10,6 +10,7 @@ import { Composer } from "@/components/apexmind/Composer";
 import { ThoughtCard } from "@/components/apexmind/ThoughtCard";
 import { StatsPanel } from "@/components/apexmind/StatsPanel";
 import { requestJson } from "@/lib/api-client";
+import { toChinaDayKey, todayInChina } from "@/lib/time";
 import type { ThoughtDto } from "@/types/api";
 
 type ThoughtListResponse = {
@@ -20,7 +21,7 @@ type ThoughtListResponse = {
 type TagSummary = { name: string; count: number };
 const IMAGE_FILTER = "__images__";
 
-export function ApexMindApp({ userId }: { userId: string }) {
+export function ApexMindApp({ initialHasThoughtToday }: { initialHasThoughtToday: boolean }) {
   const [thoughts, setThoughts] = useState<ThoughtDto[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -30,6 +31,7 @@ export function ApexMindApp({ userId }: { userId: string }) {
   const [query, setQuery] = useState("");
   const [selectedFilter, setSelectedFilter] = useState("");
   const [tags, setTags] = useState<TagSummary[]>([]);
+  const [hasThoughtToday, setHasThoughtToday] = useState(initialHasThoughtToday);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -60,12 +62,26 @@ export function ApexMindApp({ userId }: { userId: string }) {
       setThoughts(thoughtData.items);
       setNextCursor(thoughtData.nextCursor);
       setTags(tagData);
+      setHasThoughtToday(
+        Boolean(thoughtData.items[0] && toChinaDayKey(thoughtData.items[0].occurredAt) === todayInChina()),
+      );
     } catch (reason) {
       notify(reason instanceof Error ? reason.message : "数据刷新失败");
     } finally {
       setLoading(false);
     }
   }, [notify]);
+
+  const refreshTodayStatus = useCallback(async () => {
+    try {
+      const data = await requestJson<ThoughtListResponse>("/api/thoughts?limit=1");
+      setHasThoughtToday(
+        Boolean(data.items[0] && toChinaDayKey(data.items[0].occurredAt) === todayInChina()),
+      );
+    } catch {
+      // The stream remains usable if the small status refresh fails.
+    }
+  }, []);
 
   const loadThoughts = useCallback(async (cursor?: string) => {
     const params = new URLSearchParams({ limit: "20" });
@@ -111,18 +127,21 @@ export function ApexMindApp({ userId }: { userId: string }) {
   function handleCreated(thought: ThoughtDto) {
     if (!query && !selectedFilter) setThoughts((current) => [thought, ...current]);
     else { setQuery(""); setSelectedFilter(""); }
+    if (toChinaDayKey(thought.occurredAt) === todayInChina()) setHasThoughtToday(true);
     void loadTags();
   }
 
   function handleUpdated(thought: ThoughtDto) {
     setThoughts((current) => current.map((item) => item.id === thought.id ? thought : item));
     void loadTags();
+    void refreshTodayStatus();
     notify("已保存");
   }
 
   function handleDeleted(id: string) {
     setThoughts((current) => current.filter((item) => item.id !== id));
     void loadTags();
+    void refreshTodayStatus();
     notify("已永久删除");
   }
 
@@ -150,7 +169,7 @@ export function ApexMindApp({ userId }: { userId: string }) {
             </section>
           ) : null}
 
-          <Composer userId={userId} onCreated={handleCreated} onError={notify} />
+          <Composer hasThoughtToday={hasThoughtToday} onCreated={handleCreated} onError={notify} />
           <nav className="thought-filters" aria-label="筛选想法">
             <button type="button" className={!selectedFilter ? "is-active" : ""} onClick={() => setSelectedFilter("")}>全部</button>
             {tags.map((tag) => (
@@ -172,7 +191,6 @@ export function ApexMindApp({ userId }: { userId: string }) {
                 <ThoughtCard
                   key={thought.id}
                   thought={thought}
-                  userId={userId}
                   onUpdated={handleUpdated}
                   onDeleted={handleDeleted}
                   onTagClick={(tag) => setSelectedFilter(tag)}

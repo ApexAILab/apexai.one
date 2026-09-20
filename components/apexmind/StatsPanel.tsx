@@ -225,7 +225,6 @@ export function StatsPanel({ open, onClose, onNotify, onDataChanged }: StatsPane
 
           <section className="word-cloud-section" aria-label="词云">
             <div className="word-cloud-heading">
-              <span>高频词</span>
               <div className="scope-switcher" aria-label="高频词时间范围">
                 {([
                   ["month", "月"],

@@ -1,21 +1,29 @@
 "use client";
 
-import { ArrowUp, Image as ImageIcon, LoaderCircle, Tag } from "lucide-react";
+import { ArrowUp, Check, Image as ImageIcon, LoaderCircle, Tag } from "lucide-react";
 import { ChangeEvent, FormEvent, KeyboardEvent, useRef, useState } from "react";
 import { TagInput } from "@/components/apexmind/TagInput";
 import { ImageGrid } from "@/components/apexmind/ImageGrid";
 import { requestJson } from "@/lib/api-client";
-import { MAX_IMAGES_PER_THOUGHT } from "@/lib/constants";
+import { CHINA_TIME_ZONE, MAX_IMAGES_PER_THOUGHT } from "@/lib/constants";
 import { uploadImage } from "@/lib/image-upload";
 import type { ImageAssetDto, ThoughtDto } from "@/types/api";
 
 type ComposerProps = {
-  userId: string;
+  hasThoughtToday: boolean;
   onCreated: (thought: ThoughtDto) => void;
   onError: (message: string) => void;
 };
 
-export function Composer({ userId, onCreated, onError }: ComposerProps) {
+function todayLabel() {
+  return new Intl.DateTimeFormat("zh-CN", {
+    timeZone: CHINA_TIME_ZONE,
+    month: "numeric",
+    day: "numeric",
+  }).format(new Date());
+}
+
+export function Composer({ hasThoughtToday, onCreated, onError }: ComposerProps) {
   const [content, setContent] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [images, setImages] = useState<ImageAssetDto[]>([]);
@@ -44,7 +52,7 @@ export function Composer({ userId, onCreated, onError }: ComposerProps) {
     setUploading(true);
     try {
       const uploaded: ImageAssetDto[] = [];
-      for (const file of files) uploaded.push(await uploadImage(file, userId));
+      for (const file of files) uploaded.push(await uploadImage(file));
       setImages((current) => [...current, ...uploaded]);
     } catch (reason) {
       onError(reason instanceof Error ? reason.message : "图片上传失败");
@@ -101,6 +109,13 @@ export function Composer({ userId, onCreated, onError }: ComposerProps) {
 
   return (
     <form className="composer-card glass-card" onSubmit={handleSubmit}>
+      <div
+        className={`composer-today ${hasThoughtToday ? "is-complete" : ""}`}
+        aria-label={hasThoughtToday ? "今天已发布想法" : "今天还没有发布想法"}
+      >
+        <span>{todayLabel()}</span>
+        <i aria-hidden="true">{hasThoughtToday ? <Check /> : null}</i>
+      </div>
       <textarea
         ref={textareaRef}
         value={content}

@@ -22,8 +22,8 @@ export function countWords(content: string) {
 type KeywordCandidate = { text: string; count: number; phrase: boolean };
 
 function segmentedWord(value: string) {
-  const text = value.normalize("NFKC").toLocaleLowerCase("zh-CN");
-  if (!WORD.test(text) || STOP_WORDS.has(text)) return null;
+  const text = value.normalize("NFKC");
+  if (!WORD.test(text) || STOP_WORDS.has(text.toLocaleLowerCase("zh-CN"))) return null;
   if (!CJK.test(text) && text.length < 2) return null;
   return text;
 }
@@ -33,7 +33,7 @@ export function extractKeywords(contents: string[], limit = 25) {
   const phraseCounts = new Map<string, number>();
 
   for (const rawContent of contents) {
-    const content = rawContent.normalize("NFKC").toLocaleLowerCase("zh-CN");
+    const content = rawContent.normalize("NFKC");
     let recent: Array<{ text: string; end: number }> = [];
 
     for (const part of segmenter.segment(content)) {

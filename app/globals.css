@@ -232,9 +232,9 @@
   .auth-switch { margin: 21px 0 0; color: var(--muted); font-size: 13px; text-align: center; }
   .auth-switch a { color: var(--foreground); }
   .auth-note { margin: 14px 0 0; color: var(--faint); font-size: 11px; text-align: center; }
-  .account-content { width: min(100%, 560px); margin: auto; }
+  .account-content { width: min(100%, 420px); margin: auto; }
   .account-card { margin-top: 28px; padding: 6px 0; border-block: 1px solid var(--line); }
-  .account-card > div { min-height: 68px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+  .account-card > div { min-height: 68px; display: grid; grid-template-columns: 72px minmax(0, 1fr); align-items: center; gap: 24px; }
   .account-card span { color: var(--muted); font-size: 13px; }
   .account-card strong { font-size: 15px; font-weight: 500; }
   .account-card button { width: 100%; min-height: 54px; border-top: 1px solid var(--line); background: transparent; color: var(--danger); display: flex; align-items: center; gap: 9px; }
@@ -277,12 +277,12 @@
     pointer-events: none;
   }
   .mind-column { width: min(100%, 760px); margin: 0 auto; position: relative; z-index: 1; }
-  .composer-card { margin-top: 40px; padding: 19px 20px 13px; border-radius: 17px; }
+  .composer-card { margin-top: 40px; padding: 19px 20px 13px; position: relative; border-radius: 17px; }
   .composer-card > textarea {
     width: 100%;
     min-height: 84px;
     max-height: 280px;
-    padding: 2px 2px 12px;
+    padding: 2px 102px 12px 2px;
     border: 0;
     outline: 0;
     resize: none;
@@ -293,6 +293,37 @@
     letter-spacing: -.01em;
   }
   .composer-card > textarea::placeholder { font-size: 15px; }
+  .composer-today {
+    position: absolute;
+    top: 16px;
+    right: 20px;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--faint);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+  }
+  .composer-today i {
+    width: 15px;
+    height: 15px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--line-strong);
+    border-radius: 50%;
+    background: var(--soft);
+    color: transparent;
+    transition: color .18s ease, background .18s ease, border-color .18s ease;
+  }
+  .composer-today i svg { width: 10px; height: 10px; stroke-width: 2.4; }
+  .composer-today.is-complete { color: color-mix(in srgb, #789e81 78%, var(--muted)); }
+  .composer-today.is-complete i {
+    border-color: color-mix(in srgb, #8db397 62%, var(--line));
+    background: color-mix(in srgb, #b9d9c0 54%, var(--surface));
+    color: #52745b;
+  }
   .composer-footer { min-height: 42px; margin-top: 5px; display: flex; align-items: center; justify-content: space-between; }
   .composer-tools { display: flex; gap: 3px; }
   .composer-tools > button {
@@ -453,8 +484,7 @@
   .activity-calendar > div, .activity-calendar > span { aspect-ratio: 1; min-height: 24px; border-radius: 6px; }
   .activity-calendar > div { display: grid; place-items: center; border: 1px solid var(--line); background: var(--soft); color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
   .activity-calendar > div.is-active { border-color: var(--foreground); background: var(--foreground); color: var(--background); }
-  .word-cloud-heading { min-height: 30px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-  .word-cloud-heading > span { color: var(--muted); font-size: 11px; }
+  .word-cloud-heading { min-height: 30px; display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
   .scope-switcher { padding: 2px; display: flex; align-items: center; gap: 1px; border-radius: 8px; background: var(--soft); }
   .scope-switcher button { min-width: 31px; height: 25px; padding: 0 8px; border-radius: 6px; background: transparent; color: var(--muted); font-size: 11px; transition: color .18s ease, background .18s ease, box-shadow .18s ease; }
   .scope-switcher button:hover { color: var(--foreground); }
@@ -502,8 +532,9 @@
     .mind-main { min-height: calc(100dvh - 57px - env(safe-area-inset-top)); padding: 1px 13px max(64px, calc(env(safe-area-inset-bottom) + 44px)); }
     .mind-ambient { width: 130vw; height: 330px; top: 35px; }
     .composer-card { margin-top: 22px; padding: 16px 15px 10px; border-radius: 15px; }
-    .composer-card > textarea { min-height: 91px; font-size: 16px; line-height: 1.68; }
+    .composer-card > textarea { min-height: 91px; padding-right: 88px; font-size: 16px; line-height: 1.68; }
     .composer-card > textarea::placeholder { font-size: 14px; }
+    .composer-today { top: 14px; right: 15px; }
     .composer-tools > button { width: 37px; height: 37px; }
     .publish-button { width: 34px; height: 34px; }
     .thought-filters { margin-top: 13px; }
@@ -511,6 +542,7 @@
     .thought-card { padding: 12px 2px 14px; }
     .thought-content { font-size: 14.5px; line-height: 1.78; }
     .search-panel { margin-top: 15px; padding: 11px 12px; }
+    .search-panel > input { font-size: 16px; }
     .thought-card .image-open img { max-width: min(100%, 300px); max-height: 192px; }
     .composer-card .image-tile { width: 68px; height: 68px; }
 
